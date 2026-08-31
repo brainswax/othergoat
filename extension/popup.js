@@ -38,6 +38,9 @@ const downloadBtn = document.getElementById("download");
 const clearBtn = document.getElementById("clear");
 const tabButtons = [...document.querySelectorAll(".tabs [role='tab']")];
 
+document.getElementById("version").textContent =
+  `v${chrome.runtime.getManifest().version}`;
+
 let currentTab = "animals";
 let lastStore = { individuals: [], linear: [], pti: [] };
 
