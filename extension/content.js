@@ -7,8 +7,7 @@
 const DEBOUNCE_MS = 800;
 const PAUSED_KEY = "paused";
 const SETTINGS_KEY = "settings";
-const HOST_ID = "ogr-capture-host";
-const PANEL_ID = "ogr-pin-host";
+const PANEL_ID = "ogr-page-host";
 const PINNED_KEY = "pinned";
 const PINNED_MIN_KEY = "pinnedMinimized";
 
@@ -24,7 +23,7 @@ const ICON_MAX =
 const ICON_UNPIN =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5zM3.2 3.2l9.6 9.6"/></svg>';
 
-function createPinPanel() {
+function createPagePanel() {
   const existing = document.getElementById(PANEL_ID);
   if (existing) existing.remove();
 
@@ -35,7 +34,7 @@ function createPinPanel() {
     "position: fixed",
     "top: 38px",
     "right: 12px",
-    "z-index: 2147483646",
+    "z-index: 2147483647",
   ].join(";");
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `
@@ -54,6 +53,7 @@ function createPinPanel() {
         color-scheme: light dark;
         overflow: hidden;
       }
+      .card[data-pinned="false"],
       .card[data-minimized="true"] {
         width: auto;
         border-radius: 999px;
@@ -66,8 +66,11 @@ function createPinPanel() {
         border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
         cursor: default;
       }
+      .card[data-pinned="false"] .chrome,
       .card[data-minimized="true"] .chrome { border-bottom: 0; }
       .title { flex: 1; font-weight: 600; white-space: nowrap; }
+      .label { white-space: nowrap; }
+      .card[data-paused="true"] .label { opacity: 0.75; }
       .chrome button {
         display: inline-flex;
         align-items: center;
@@ -84,9 +87,11 @@ function createPinPanel() {
       .chrome button:hover, .chrome button:focus-visible {
         background: color-mix(in srgb, CanvasText 16%, transparent);
       }
-      .chrome .unpin {
-        color: CanvasText;
-      }
+      .card[data-pinned="false"] .title,
+      .card[data-pinned="false"] .min,
+      .card[data-pinned="false"] .unpin,
+      .card[data-pinned="false"] iframe,
+      .card[data-minimized="true"] iframe { display: none; }
       iframe {
         display: block;
         width: 400px;
@@ -95,13 +100,14 @@ function createPinPanel() {
         border: 0;
         background: Canvas;
       }
-      .card[data-minimized="true"] iframe { display: none; }
     </style>
-    <div class="card" data-minimized="false">
+    <div class="card" data-pinned="false" data-minimized="false" data-paused="true">
       <div class="chrome">
         <span class="title">Other Goats Records</span>
         <button type="button" class="min" aria-label="Minimize">${ICON_MIN}</button>
         <button type="button" class="unpin" aria-label="Unpin" title="Unpin from Genetics">${ICON_UNPIN}</button>
+        <span class="label">Paused</span>
+        <button type="button" class="pause" aria-label="Resume capture">${ICON_PLAY}</button>
       </div>
       <iframe title="Other Goats Records"></iframe>
     </div>
@@ -109,8 +115,15 @@ function createPinPanel() {
   const card = shadow.querySelector(".card");
   const minBtn = shadow.querySelector(".min");
   const unpinBtn = shadow.querySelector(".unpin");
+  const pauseBtn = shadow.querySelector(".pause");
+  const label = shadow.querySelector(".label");
   const frame = shadow.querySelector("iframe");
-  frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
+  let frameReady = false;
+  const ensureFrame = () => {
+    if (frameReady) return;
+    frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
+    frameReady = true;
+  };
   minBtn.addEventListener("click", () => {
     const next = card.dataset.minimized !== "true";
     chrome.storage.local.set({ [PINNED_MIN_KEY]: next });
@@ -123,6 +136,11 @@ function createPinPanel() {
   unpinBtn.addEventListener("click", () => {
     chrome.storage.local.set({ [PINNED_KEY]: false, [PINNED_MIN_KEY]: false });
   });
+  pauseBtn.addEventListener("click", () => {
+    chrome.storage.local.set({
+      [PAUSED_KEY]: card.dataset.paused !== "true",
+    });
+  });
 
   const mount = () => {
     if (!host.isConnected) document.documentElement.appendChild(host);
@@ -130,27 +148,35 @@ function createPinPanel() {
 
   return {
     host,
-    render({ pinned, minimized }) {
-      if (!pinned) {
-        host.remove();
-        return;
-      }
+    mount,
+    render({ pinned, minimized, paused }) {
       mount();
+      if (pinned) ensureFrame();
+      card.dataset.pinned = pinned ? "true" : "false";
       card.dataset.minimized = minimized ? "true" : "false";
+      card.dataset.paused = paused ? "true" : "false";
+      label.textContent = paused ? "Paused" : "Capturing";
+      pauseBtn.setAttribute(
+        "aria-label",
+        paused ? "Resume capture" : "Pause capture",
+      );
+      pauseBtn.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
       minBtn.setAttribute("aria-label", minimized ? "Expand" : "Minimize");
       minBtn.innerHTML = minimized ? ICON_MAX : ICON_MIN;
     },
   };
 }
 
-function startPinPanel() {
-  const panel = createPinPanel();
+function startPagePanel() {
+  const panel = createPagePanel();
   let pinned = false;
   let minimized = false;
-  const apply = () => panel.render({ pinned, minimized });
-  chrome.storage.local.get([PINNED_KEY, PINNED_MIN_KEY], (data) => {
+  let paused = true;
+  const apply = () => panel.render({ pinned, minimized, paused });
+  chrome.storage.local.get([PINNED_KEY, PINNED_MIN_KEY, PAUSED_KEY], (data) => {
     pinned = Boolean(data[PINNED_KEY]);
     minimized = Boolean(data[PINNED_MIN_KEY]);
+    paused = Boolean(data[PAUSED_KEY]);
     apply();
   });
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -159,8 +185,12 @@ function startPinPanel() {
     if (changes[PINNED_MIN_KEY]) {
       minimized = Boolean(changes[PINNED_MIN_KEY].newValue);
     }
-    if (changes[PINNED_KEY] || changes[PINNED_MIN_KEY]) apply();
+    if (changes[PAUSED_KEY]) paused = Boolean(changes[PAUSED_KEY].newValue);
+    if (changes[PINNED_KEY] || changes[PINNED_MIN_KEY] || changes[PAUSED_KEY]) {
+      apply();
+    }
   });
+  apply();
   return panel;
 }
 
@@ -204,84 +234,7 @@ function sendBatch(batch, remaining = 3) {
   }
 }
 
-function mountOverlay(onToggle) {
-  const existing = document.getElementById(HOST_ID);
-  if (existing) existing.remove();
-
-  const host = document.createElement("div");
-  host.id = HOST_ID;
-  host.style.cssText = [
-    "all: initial",
-    "position: fixed",
-    "right: 12px",
-    "bottom: 12px",
-    "z-index: 2147483647",
-  ].join(";");
-  const shadow = host.attachShadow({ mode: "open" });
-  shadow.innerHTML = `
-    <style>
-      :host { all: initial; }
-      @media print { .bar { display: none !important; } }
-      .bar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 8px 6px 10px;
-        border-radius: 999px;
-        background: Canvas;
-        color: CanvasText;
-        border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-        box-shadow: 0 1px 6px color-mix(in srgb, CanvasText 18%, transparent);
-        font: 12px/1.2 system-ui, sans-serif;
-        color-scheme: light dark;
-      }
-      .label { white-space: nowrap; }
-      .bar[data-paused="true"] .label { opacity: 0.75; }
-      button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        padding: 0;
-        border: 0;
-        border-radius: 999px;
-        background: color-mix(in srgb, CanvasText 8%, transparent);
-        color: inherit;
-        cursor: pointer;
-      }
-      button:hover, button:focus-visible {
-        background: color-mix(in srgb, CanvasText 16%, transparent);
-      }
-    </style>
-    <div class="bar" data-paused="false">
-      <span class="label">Capturing</span>
-      <button type="button" aria-label="Pause capture">${ICON_PAUSE}</button>
-    </div>
-  `;
-  const bar = shadow.querySelector(".bar");
-  const label = shadow.querySelector(".label");
-  const button = shadow.querySelector("button");
-  button.addEventListener("click", () => onToggle());
-
-  const mount = () => {
-    if (!host.isConnected) document.documentElement.appendChild(host);
-  };
-  mount();
-
-  return {
-    host,
-    mount,
-    render(paused) {
-      bar.dataset.paused = paused ? "true" : "false";
-      label.textContent = paused ? "Paused" : "Capturing";
-      button.setAttribute("aria-label", paused ? "Resume capture" : "Pause capture");
-      button.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
-    },
-  };
-}
-
-function startCapture(extractFromDocument, normalizeSettings, pinPanel) {
+function startCapture(extractFromDocument, normalizeSettings, pagePanel) {
   let lastKey = "";
   let lastAt = 0;
   let timer = 0;
@@ -290,14 +243,9 @@ function startCapture(extractFromDocument, normalizeSettings, pinPanel) {
   let settings = normalizeSettings({});
   let observer = null;
 
-  const overlay = mountOverlay(() => {
-    chrome.storage.local.set({ [PAUSED_KEY]: !paused });
-  });
-  overlay.render(true);
-
   const run = (fromRetry) => {
     if (paused) return;
-    overlay.mount();
+    pagePanel.mount();
     let batch = null;
     try {
       batch = extractFromDocument(document, location.href, nowIso(), settings);
@@ -339,13 +287,12 @@ function startCapture(extractFromDocument, normalizeSettings, pinPanel) {
       records.length > 0 &&
       records.every(
         (record) =>
-          overlay.host.contains(record.target) ||
-          pinPanel.host.contains(record.target),
+          pagePanel.host.contains(record.target),
       )
     ) {
       return;
     }
-    overlay.mount();
+    pagePanel.mount();
     attempts = 0;
     window.clearTimeout(timer);
     timer = window.setTimeout(() => run(true), DEBOUNCE_MS);
@@ -354,7 +301,6 @@ function startCapture(extractFromDocument, normalizeSettings, pinPanel) {
   const setPaused = (next) => {
     const wasPaused = paused;
     paused = next;
-    overlay.render(paused);
     if (paused) {
       window.clearTimeout(timer);
       attempts = 12;
@@ -406,12 +352,12 @@ function startCapture(extractFromDocument, normalizeSettings, pinPanel) {
   });
 }
 
-const pinPanel = startPinPanel();
+const pagePanel = startPagePanel();
 
 function boot(remaining) {
   import(chrome.runtime.getURL("extract.js"))
     .then((mod) =>
-      startCapture(mod.extractFromDocument, mod.normalizeSettings, pinPanel),
+      startCapture(mod.extractFromDocument, mod.normalizeSettings, pagePanel),
     )
     .catch(() => {
       if (remaining <= 0) return;
