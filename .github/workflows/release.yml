@@ -32,6 +32,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/other-goats-records-*.zip \
+          gh release create "$GITHUB_REF_NAME" \
+            dist/other-goats-records-*.zip \
+            dist/other-goats-records.zip \
             --title "Other Goats Records ${GITHUB_REF_NAME#v}" \
             --generate-notes

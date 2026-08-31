@@ -1,8 +1,8 @@
 # Other Goats Records — ADGA Genetics capture → CSV zip
 
-**Status (2026-08-30):** Milestone 1 (passive-only) is implemented in `extension/`. Load unpacked from that folder (root `README.md`). Goatsmith import of this zip is **not** in this repo (herdsmith P-18).
+**Status (2026-08-30):** Milestone 1 (passive-only) is implemented in `extension/`. Load unpacked from that folder (root `README.md`).
 
-The extension has no knowledge of Goatsmith and does not contact any server.
+The extension does not contact any server.
 
 ---
 
@@ -16,7 +16,7 @@ A browser extension captures structured animal data from ADGA Genetics GoatDetai
 - Tolerate partial rows (pedigree stubs, progeny tables).
 - Deduplicate by registration; empty fields never overwrite filled ones.
 - Keep all data on this computer until the user downloads a file.
-- Produce a normalized zip usable in spreadsheets or a later Goatsmith import.
+- Produce a normalized zip usable in spreadsheets.
 
 ## 3. Non-goals (milestone 1)
 
@@ -76,7 +76,7 @@ One row per Linear History event.
 registration_number,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,final_score,majors,source_url,captured_at,notes
 ```
 
-Trait keys match Goatsmith. Unmapped Genetics columns go in `notes`.
+Trait keys follow the Genetics Linear History column order. Unmapped Genetics columns go in `notes`.
 
 ### pti.csv
 
@@ -88,22 +88,16 @@ registration_number,pti21,pti12,eta21,eta12,source_url,captured_at
 
 ---
 
-## 6. Goatsmith import (later)
-
-Upload the zip, preview, match animals by registration, store provenance, map LA and PTI, resolve sire/dam by registration. Canonical backlog: herdsmith **P-18**.
-
----
-
-## 7. User flow (milestone 1)
+## 6. User flow (milestone 1)
 
 1. Browse ADGA Genetics normally (Pedigree, Progeny, Linear History, evals).
 2. Extension merges whatever is on the page.
 3. Open the popup → **Download zip**.
-4. Open the three CSVs in a spreadsheet, or import later.
+4. Open the three CSVs in a spreadsheet.
 
 ---
 
-## 8. Technical notes
+## 7. Technical notes
 
 - Extraction must not throw into the host page.
 - Cloudflare’s “verify your browser” interstitial: retry until the heading/reg appears.
@@ -112,7 +106,7 @@ Upload the zip, preview, match animals by registration, store provenance, map LA
 
 ---
 
-## 9. Milestones
+## 8. Milestones
 
 ### 1 – Passive-only (this pass)
 
@@ -130,7 +124,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 
 ---
 
-## 10. Live page notes
+## 9. Live page notes
 
 - Animal URL: `GoatDetail.aspx?RegNumber={REG}`.
 - Heading: `NAME - REG (PB Doe|Buck…)`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03`.
@@ -141,7 +135,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 
 ---
 
-## 11. Success criteria
+## 10. Success criteria
 
 - A user can click through ADGA Genetics and obtain a usable zip with minimal friction.
 - Partial pedigree/progeny rows do not duplicate an animal or wipe fields filled on another view.

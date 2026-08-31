@@ -2,11 +2,11 @@
 
 A **Chrome / Chromium** (120+) browser extension that captures animal data from [ADGA Genetics](https://genetics.adga.org/) pages **you actually visit**, merges them on this computer, and downloads a zip of CSVs.
 
-It has **no network of its own**: it does not scrape pages you never opened, and it does not talk to Goatsmith or any other server.
+It has **no network of its own**: it does not scrape pages you never opened, and it does not talk to any other server.
 
 License: [GPL-3.0](./LICENSE).
 
-Design: [`docs/goatsmith-adga-genetics-csv-export-design.md`](./docs/goatsmith-adga-genetics-csv-export-design.md).
+Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-export-design.md).
 
 ## Milestones
 
@@ -14,17 +14,21 @@ Design: [`docs/goatsmith-adga-genetics-csv-export-design.md`](./docs/goatsmith-a
 2. **Active individual** — Point at one registration; the extension POSTs that animal’s own views.
 3. **Active family** — After (2), POST-walk direct progeny, siblings, and parents.
 
-Goatsmith zip import is later (herdsmith P-18).
+## Install
 
-## Install (until Chrome Web Store)
+Until this is on the Chrome Web Store, install from the latest GitHub Release:
 
-1. Open the latest [GitHub Release](https://github.com/brainswax/othergoat/releases).
-2. Download `other-goats-records-*.zip` and unzip it.
-3. Chrome → `chrome://extensions` → **Developer mode** on.
-4. **Load unpacked** → pick the folder that contains `manifest.json`.
-5. Pin **Other Goats Records** and open a Genetics GoatDetail page.
+**[Download Other Goats Records (latest)](https://github.com/brainswax/othergoat/releases/latest/download/other-goats-records.zip)**
 
-If the GitHub repo is private, testers need access to the repo (or you send them the zip). Unpacked extensions always show Chrome’s developer warning; that goes away only on the Web Store.
+([All releases](https://github.com/brainswax/othergoat/releases/latest))
+
+1. Unzip the file. You should get a folder named `other-goats-records-…` that contains `manifest.json`.
+2. In Chrome, open `chrome://extensions`.
+3. Turn on **Developer mode** (top right).
+4. Click **Load unpacked** and choose **that folder** (the one with `manifest.json` inside, not the zip).
+5. Pin **Other Goats Records** on the toolbar, then open a goat on [ADGA Genetics](https://genetics.adga.org/).
+
+Chrome will warn that this is an unpacked developer extension. That is expected until a Web Store listing exists. If the GitHub repo is private, you need access to download the release (or someone must send you the zip).
 
 ## Load unpacked from this repo (development)
 
@@ -63,7 +67,7 @@ Parser, merge, and CSV helpers are plain ES modules. No compile step.
 npm run pack
 ```
 
-Writes `dist/other-goats-records-{version}.zip`. Testers unzip and **Load unpacked** on the folder that contains `manifest.json`.
+Writes `dist/other-goats-records-{version}.zip` and a stable `dist/other-goats-records.zip` (same contents). Testers unzip and **Load unpacked** on the folder that contains `manifest.json`.
 
 To publish that zip on GitHub, tag the commit with the same version as `extension/manifest.json` and push the tag:
 
@@ -75,5 +79,4 @@ git push origin v0.2.15
 ## What this is not
 
 - POST-back or family walk (milestones 2–3)
-- A Goatsmith plugin
 - Firefox

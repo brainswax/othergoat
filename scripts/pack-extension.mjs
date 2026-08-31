@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Zip extension/ for testers: dist/other-goats-records-{version}.zip */
 
-import { cpSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,4 +27,8 @@ execFileSync("zip", ["-r", "-q", zipName, folderName], {
   cwd: dist,
   stdio: "inherit",
 });
+const stablePath = join(dist, "other-goats-records.zip");
+rmSync(stablePath, { force: true });
+copyFileSync(zipPath, stablePath);
 console.log(zipPath);
+console.log(stablePath);
