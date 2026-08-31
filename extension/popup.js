@@ -5,8 +5,12 @@ import {
   storeToZipBlob,
 } from "./csv.js";
 import { linearKey, ptiKey } from "./merge.js";
-import { identityKey } from "./registration.js";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./schema.js";
+import { goatDetailUrl, identityKey } from "./registration.js";
+import {
+  DEFAULT_SETTINGS,
+  isIndividualComplete,
+  normalizeSettings,
+} from "./schema.js";
 
 const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
@@ -78,9 +82,48 @@ function appendItem(parts) {
   listEl.append(li);
 }
 
-function titleRow(name, capturedAt) {
+function completeMark() {
+  const mark = document.createElement("span");
+  mark.className = "complete";
+  mark.title = "Has full identity from this animal’s Genetics page";
+  mark.innerHTML =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
+  mark.append(el("span", "sr-only", "Complete"));
+  return mark;
+}
+
+function openGoatPage(url) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const id = tabs[0]?.id;
+    if (id != null) chrome.tabs.update(id, { url });
+    else chrome.tabs.create({ url });
+    window.close();
+  });
+}
+
+function nameLink(name, registration, sourceUrl) {
+  const url = goatDetailUrl(registration, sourceUrl);
+  if (!url) return el("div", "name", name);
+  const a = el("a", "name", name);
+  a.href = url;
+  a.title = "Open on ADGA Genetics";
+  a.addEventListener("click", (event) => {
+    event.preventDefault();
+    openGoatPage(url);
+  });
+  return a;
+}
+
+function titleRow(name, capturedAt, opts = {}) {
   const top = el("div", "row");
-  top.append(el("div", "name", name));
+  const left = el("div", "title");
+  if (opts.complete) left.append(completeMark());
+  left.append(
+    opts.registration
+      ? nameLink(name, opts.registration, opts.sourceUrl)
+      : el("div", "name", name),
+  );
+  top.append(left);
   const when = formatCaptured(capturedAt);
   if (when) top.append(el("div", "when", when));
   return top;
@@ -108,10 +151,11 @@ function metaRow(text, kind, key) {
 function renderAnimals(individuals) {
   for (const row of individuals) {
     appendItem([
-      titleRow(
-        row.registered_name || row.registration_number,
-        row.captured_at,
-      ),
+      titleRow(row.registered_name || row.registration_number, row.captured_at, {
+        complete: isIndividualComplete(row),
+        registration: row.registration_number,
+        sourceUrl: row.source_url,
+      }),
       metaRow(
         [
           row.registration_number,
@@ -131,7 +175,10 @@ function renderLinear(linear, nameOf) {
   for (const row of linear) {
     const title = nameOf(row.registration_number);
     appendItem([
-      titleRow(title || row.registration_number, row.captured_at),
+      titleRow(title || row.registration_number, row.captured_at, {
+        registration: row.registration_number,
+        sourceUrl: row.source_url,
+      }),
       metaRow(
         [
           row.registration_number,
@@ -161,7 +208,10 @@ function renderPti(pti, nameOf) {
       .filter(Boolean)
       .join(" · ");
     appendItem([
-      titleRow(title || row.registration_number, row.captured_at),
+      titleRow(title || row.registration_number, row.captured_at, {
+        registration: row.registration_number,
+        sourceUrl: row.source_url,
+      }),
       metaRow(row.registration_number || "", "pti", ptiKey(row)),
       scores ? el("div", "scores", scores) : null,
     ]);

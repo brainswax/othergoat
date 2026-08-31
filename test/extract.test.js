@@ -8,7 +8,7 @@ import {
   parsePedigreeNodes,
   registrationFromUrl,
 } from "../extension/extract.js";
-import { emptyStore, LINEAR_COLUMNS } from "../extension/schema.js";
+import { emptyStore, LINEAR_COLUMNS, INDIVIDUAL_COLUMNS, isIndividualComplete } from "../extension/schema.js";
 import { mergeBatch, linearKey, removeRow } from "../extension/merge.js";
 import {
   csvExportFilename,
@@ -17,8 +17,12 @@ import {
   storeToZipBlob,
   storeToZipFiles,
 } from "../extension/csv.js";
-import { INDIVIDUAL_COLUMNS } from "../extension/schema.js";
-import { toAdgaRegistration, breedName } from "../extension/registration.js";
+import {
+  toAdgaRegistration,
+  breedName,
+  goatDetailUrl,
+  toGeneticsRegNumber,
+} from "../extension/registration.js";
 
 const SAMPLE_URL =
   "https://genetics.adga.org/GoatDetail.aspx?RegNumber=N001352104";
@@ -58,6 +62,58 @@ describe("breedName", () => {
     assert.equal(breedName("D"), "Nigerian Dwarf");
     assert.equal(breedName("PD2237546"), "Nigerian Dwarf");
     assert.equal(breedName("N"), "Nubian");
+  });
+});
+
+describe("toGeneticsRegNumber", () => {
+  it("rebuilds the Genetics query value from a paper ID", () => {
+    assert.equal(toGeneticsRegNumber("PD2237546"), "D002237546");
+    assert.equal(toGeneticsRegNumber("PN1352104"), "N001352104");
+    assert.equal(toGeneticsRegNumber("N1201234"), "N001201234");
+  });
+});
+
+describe("goatDetailUrl", () => {
+  it("rebuilds GoatDetail from a paper ID", () => {
+    assert.equal(
+      goatDetailUrl("PN1352104"),
+      "https://genetics.adga.org/GoatDetail.aspx?RegNumber=N001352104",
+    );
+  });
+
+  it("keeps source_url when it already points at this animal", () => {
+    assert.equal(goatDetailUrl("PN1352104", SAMPLE_URL), SAMPLE_URL);
+  });
+
+  it("ignores source_url that belongs to a different animal", () => {
+    assert.equal(
+      goatDetailUrl("N1201234", SAMPLE_URL),
+      "https://genetics.adga.org/GoatDetail.aspx?RegNumber=N001201234",
+    );
+  });
+});
+
+describe("isIndividualComplete", () => {
+  it("requires GoatDetail identity fields, not FS or parents", () => {
+    assert.equal(
+      isIndividualComplete({
+        registered_name: "DOE",
+        sex: "DOE",
+        herdbook: "PB",
+        date_of_birth: "3/20/2020",
+        breed: "N",
+        breed_percent: "100",
+      }),
+      true,
+    );
+    assert.equal(
+      isIndividualComplete({
+        registered_name: "STUB",
+        registration_number: "N111111",
+        sire_registration: "N222222",
+      }),
+      false,
+    );
   });
 });
 
@@ -163,6 +219,8 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(byReg.N1201234.dam_registration, "N222222");
     assert.equal(byReg.N111111.registered_name, "SGCH SOME SIRE");
     assert.equal(byReg.N111111.sire_registration, "");
+    assert.equal(isIndividualComplete(byReg.PN1352104), true);
+    assert.equal(isIndividualComplete(byReg.N1201234), false);
     assert.equal(batch.pti.length, 1);
     assert.equal(batch.pti[0].pti21, "142");
     assert.equal(batch.pti[0].pti12, "12");
@@ -247,6 +305,7 @@ describe("extractFromSnapshot progeny", () => {
     assert.equal(kid.dam_registration, "PN1352104");
     assert.equal(kid.sire_registration, "");
     assert.equal(kid.polled, "Y");
+    assert.equal(isIndividualComplete(kid), false);
   });
 });
 

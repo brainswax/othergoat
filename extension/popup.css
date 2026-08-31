@@ -99,11 +99,50 @@ main {
   gap: 10px;
 }
 
+#list .title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
 #list .name {
   font-weight: 600;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#list a.name {
+  color: inherit;
+  text-decoration: none;
+}
+
+#list a.name:hover,
+#list a.name:focus-visible {
+  text-decoration: underline;
+}
+
+#list .complete {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: #2e8b57;
+}
+
+@media (prefers-color-scheme: dark) {
+  #list .complete {
+    color: #6dca8a;
+  }
+}
+
+#list .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
 

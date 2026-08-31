@@ -76,6 +76,41 @@ export function identityKey(reg) {
   return adga;
 }
 
+/** Genetics query value: breed + zero-padded digits (D002237546). */
+export function toGeneticsRegNumber(value) {
+  const key = identityKey(value);
+  const match = key.match(/^([A-Z])(\d+)$/);
+  if (!match || !BREED_NAMES[match[1]]) return "";
+  return `${match[1]}${match[2].padStart(9, "0")}`;
+}
+
+/**
+ * GoatDetail URL for a registration. Prefer source_url when it already
+ * points at this animal; otherwise rebuild from the paper / Genetics ID.
+ */
+export function goatDetailUrl(registration, sourceUrl = "") {
+  try {
+    if (sourceUrl) {
+      const parsed = new URL(sourceUrl);
+      if (
+        /genetics\.adga\.org$/i.test(parsed.hostname) &&
+        /GoatDetail\.aspx/i.test(parsed.pathname)
+      ) {
+        const fromPage = (parsed.searchParams.get("RegNumber") ?? "").trim();
+        if (fromPage && identityKey(fromPage) === identityKey(registration)) {
+          return sourceUrl;
+        }
+      }
+    }
+  } catch {
+    /* rebuild below */
+  }
+  const genetics = toGeneticsRegNumber(registration);
+  return genetics
+    ? `https://genetics.adga.org/GoatDetail.aspx?RegNumber=${genetics}`
+    : "";
+}
+
 /** Genetics / certificate letter, e.g. D from PD2237546 or D002237546. */
 export function breedLetter(value) {
   const raw = String(value ?? "").trim().toUpperCase();

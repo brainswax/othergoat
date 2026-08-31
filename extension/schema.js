@@ -17,6 +17,25 @@ export const INDIVIDUAL_COLUMNS = [
   "notes",
 ];
 
+/**
+ * GoatDetail identity pane — filled by visiting that animal, not by a
+ * pedigree/progeny stub. Polled, FS, sire/dam, PTI, and LA are optional.
+ */
+export const INDIVIDUAL_IDENTITY_FIELDS = [
+  "registered_name",
+  "sex",
+  "herdbook",
+  "date_of_birth",
+  "breed",
+  "breed_percent",
+];
+
+export function isIndividualComplete(row) {
+  return INDIVIDUAL_IDENTITY_FIELDS.every(
+    (key) => String(row?.[key] ?? "").trim() !== "",
+  );
+}
+
 /** Same left-to-right order as ADGA Genetics Linear History. */
 export const LINEAR_COLUMNS = [
   "registration_number",
