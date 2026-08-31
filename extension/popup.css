@@ -5,19 +5,20 @@
 
 body {
   margin: 0;
-  width: 360px;
-  max-height: 480px;
+  width: 400px;
+  max-height: 520px;
   display: flex;
   flex-direction: column;
 }
 
 header,
 footer {
-  padding: 10px 12px;
+  padding: 10px 12px 0;
   border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
 }
 
 footer {
+  padding: 10px 12px;
   border-bottom: 0;
   border-top: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
   display: flex;
@@ -30,8 +31,32 @@ h1 {
 }
 
 #status {
-  margin: 0;
+  margin: 0 0 8px;
   color: color-mix(in srgb, CanvasText 70%, transparent);
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 -12px;
+  padding: 0 8px;
+}
+
+.tabs [role="tab"] {
+  flex: 1;
+  padding: 6px 8px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 70%, transparent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabs [role="tab"][aria-selected="true"] {
+  color: CanvasText;
+  border-bottom-color: CanvasText;
+  font-weight: 600;
 }
 
 main {
@@ -55,9 +80,16 @@ main {
   font-weight: 600;
 }
 
-#list .meta {
+#list .meta,
+#list .scores {
   color: color-mix(in srgb, CanvasText 65%, transparent);
   font-size: 12px;
+}
+
+#list .scores {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
 }
 
 #empty {
@@ -66,7 +98,7 @@ main {
   color: color-mix(in srgb, CanvasText 70%, transparent);
 }
 
-button {
+footer button {
   flex: 1;
   padding: 6px 8px;
 }

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ADGA Genetics Capture",
+  "name": "Other Goats Records",
   "description": "Capture ADGA Genetics pages you visit and download a zip of CSVs. Data stays on this computer.",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "minimum_chrome_version": "120",
   "permissions": ["storage"],
   "background": {
@@ -10,7 +10,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "ADGA Genetics Capture",
+    "default_title": "Other Goats Records",
     "default_popup": "popup.html"
   },
   "content_scripts": [

@@ -1,4 +1,4 @@
-# ADGA Genetics capture → CSV zip
+# Other Goats Records — ADGA Genetics capture → CSV zip
 
 **Status (2026-08-30):** Milestone 1 (passive-only) is implemented in `extension/`. Load unpacked from that folder (root `README.md`). Goatsmith import of this zip is **not** in this repo (herdsmith P-18).
 

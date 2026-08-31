@@ -2,15 +2,49 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>ADGA Genetics Capture</title>
+    <title>Other Goats Records</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header>
-      <h1>ADGA Genetics Capture</h1>
+      <h1>Other Goats Records</h1>
       <p id="status">Loading…</p>
+      <nav class="tabs" role="tablist" aria-label="Captured data">
+        <button
+          type="button"
+          role="tab"
+          id="tab-animals"
+          data-tab="animals"
+          aria-selected="true"
+          aria-controls="panel"
+        >
+          Animals
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-linear"
+          data-tab="linear"
+          aria-selected="false"
+          aria-controls="panel"
+          tabindex="-1"
+        >
+          LA
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-pti"
+          data-tab="pti"
+          aria-selected="false"
+          aria-controls="panel"
+          tabindex="-1"
+        >
+          PTI
+        </button>
+      </nav>
     </header>
-    <main>
+    <main id="panel" role="tabpanel" aria-labelledby="tab-animals">
       <ul id="list"></ul>
       <p id="empty" hidden>
         Visit goat detail pages on genetics.adga.org. Captured animals appear

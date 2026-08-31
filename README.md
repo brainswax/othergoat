@@ -1,4 +1,4 @@
-# othergoat
+# Other Goats Records
 
 A **Chrome / Chromium** (120+) browser extension that captures animal data from [ADGA Genetics](https://genetics.adga.org/) pages **you actually visit**, merges them on this computer, and downloads a zip of CSVs.
 
