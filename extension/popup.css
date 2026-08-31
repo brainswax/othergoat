@@ -179,8 +179,13 @@ main {
   cursor: pointer;
 }
 
-#settings input {
-  margin: 3px 0 0;
+#settings label.sub {
+  margin-left: 22px;
+}
+
+#settings label:has(input:disabled) {
+  opacity: 0.55;
+  cursor: default;
 }
 
 #settings .hint {

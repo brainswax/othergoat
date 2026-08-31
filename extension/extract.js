@@ -624,8 +624,6 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
   batch.eventTarget = collapse(page.eventTarget);
 
   const subject = subjectFromPage(page, registration, capturedAt);
-  batch.individuals.push(subject);
-
   const tree = individualsFromPedigree(
     registration,
     parsePedigreeNodes(page.text, page.links, page.tables),
@@ -637,24 +635,26 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
     subject.sire_registration = subjectFromTree.sire_registration;
     subject.dam_registration = subjectFromTree.dam_registration;
   }
-  if (opts.captureAncestry) {
-    batch.individuals.push(
-      ...tree.filter((row) => row.registration_number !== registration),
-    );
-    if (view === "pedigree") {
-      const have = new Set(batch.individuals.map((row) => row.registration_number));
-      for (const stub of stubsFromGoatLinks(page.links, capturedAt, page.url ?? "")) {
-        if (have.has(stub.registration_number)) continue;
-        have.add(stub.registration_number);
-        batch.individuals.push(stub);
+  if (opts.recordIndividuals) {
+    batch.individuals.push(subject);
+    if (opts.captureAncestry) {
+      batch.individuals.push(
+        ...tree.filter((row) => row.registration_number !== registration),
+      );
+      if (view === "pedigree") {
+        const have = new Set(batch.individuals.map((row) => row.registration_number));
+        for (const stub of stubsFromGoatLinks(page.links, capturedAt, page.url ?? "")) {
+          if (have.has(stub.registration_number)) continue;
+          have.add(stub.registration_number);
+          batch.individuals.push(stub);
+        }
       }
     }
-  }
-
-  if (view === "progeny") {
-    batch.individuals.push(
-      ...extractProgenyRows(page.tables, subject, capturedAt, page.url ?? ""),
-    );
+    if (view === "progeny") {
+      batch.individuals.push(
+        ...extractProgenyRows(page.tables, subject, capturedAt, page.url ?? ""),
+      );
+    }
   }
   if (view === "linear" && opts.recordLinear) {
     batch.linear.push(
@@ -672,7 +672,7 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
     const pti = ptiRow(page.text ?? "", registration, capturedAt, page.url ?? "");
     if (pti) batch.pti.push(pti);
   }
-  return convertBatch(batch);
+  return convertBatch(batch, subject.herdbook);
 }
 
 function convertRowRegs(row, fields) {
@@ -687,8 +687,8 @@ function convertRowRegs(row, fields) {
   return next;
 }
 
-function convertBatch(batch) {
-  const subjectBook = batch.individuals[0]?.herdbook ?? "";
+function convertBatch(batch, subjectBook = "") {
+  const book = subjectBook || batch.individuals[0]?.herdbook || "";
   batch.individuals = batch.individuals.map((row) =>
     convertRowRegs(row, [
       "registration_number",
@@ -698,11 +698,11 @@ function convertBatch(batch) {
   );
   batch.linear = batch.linear.map((row) => ({
     ...row,
-    registration_number: toAdgaRegistration(row.registration_number, subjectBook),
+    registration_number: toAdgaRegistration(row.registration_number, book),
   }));
   batch.pti = batch.pti.map((row) => ({
     ...row,
-    registration_number: toAdgaRegistration(row.registration_number, subjectBook),
+    registration_number: toAdgaRegistration(row.registration_number, book),
   }));
   const canon = (reg) => {
     if (!reg) return "";

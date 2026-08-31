@@ -149,7 +149,19 @@ function startCapture(extractFromDocument, normalizeSettings) {
     } catch {
       batch = null;
     }
-    if (!batch?.individuals?.length) {
+    if (!batch) {
+      if (fromRetry && attempts < 12) {
+        attempts += 1;
+        window.setTimeout(() => run(true), 400);
+      }
+      return;
+    }
+    const hasData =
+      (batch.individuals?.length ?? 0) +
+        (batch.linear?.length ?? 0) +
+        (batch.pti?.length ?? 0) >
+      0;
+    if (!hasData) {
       if (fromRetry && attempts < 12) {
         attempts += 1;
         window.setTimeout(() => run(true), 400);

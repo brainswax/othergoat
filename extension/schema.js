@@ -102,6 +102,7 @@ export function emptyBatch() {
 
 /** Capture toggles. All on until the user opts out. */
 export const DEFAULT_SETTINGS = {
+  recordIndividuals: true,
   captureAncestry: true,
   recordPti: true,
   recordLinear: true,
@@ -110,6 +111,7 @@ export const DEFAULT_SETTINGS = {
 export function normalizeSettings(raw) {
   const src = raw && typeof raw === "object" ? raw : {};
   return {
+    recordIndividuals: src.recordIndividuals !== false,
     captureAncestry: src.captureAncestry !== false,
     recordPti: src.recordPti !== false,
     recordLinear: src.recordLinear !== false,

@@ -206,6 +206,21 @@ describe("extractFromSnapshot pedigree", () => {
     );
     assert.equal(batch.pti.length, 0);
   });
+
+  it("skips individual rows when recordIndividuals is off", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT,
+        links: PEDIGREE_LINKS,
+      },
+      "t",
+      { recordIndividuals: false, captureAncestry: true },
+    );
+    assert.equal(batch.individuals.length, 0);
+    assert.equal(batch.pti.length, 1);
+  });
 });
 
 describe("extractFromSnapshot progeny", () => {

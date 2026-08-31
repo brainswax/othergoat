@@ -22,6 +22,7 @@ const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
 const settingsEl = document.getElementById("settings");
+const individualsOpt = document.getElementById("opt-individuals");
 const ancestryOpt = document.getElementById("opt-ancestry");
 const ptiOpt = document.getElementById("opt-pti");
 const linearOpt = document.getElementById("opt-linear");
@@ -178,13 +179,16 @@ function setTab(tab) {
 
 function paintSettings(settings) {
   const opts = normalizeSettings(settings);
+  individualsOpt.checked = opts.recordIndividuals;
   ancestryOpt.checked = opts.captureAncestry;
   ptiOpt.checked = opts.recordPti;
   linearOpt.checked = opts.recordLinear;
+  ancestryOpt.disabled = !opts.recordIndividuals;
 }
 
 function readSettingsForm() {
   return {
+    recordIndividuals: individualsOpt.checked,
     captureAncestry: ancestryOpt.checked,
     recordPti: ptiOpt.checked,
     recordLinear: linearOpt.checked,
@@ -192,6 +196,7 @@ function readSettingsForm() {
 }
 
 function saveSettings() {
+  ancestryOpt.disabled = !individualsOpt.checked;
   chrome.storage.local.set({ [SETTINGS_KEY]: readSettingsForm() });
 }
 
@@ -321,6 +326,7 @@ clearBtn.addEventListener("click", async () => {
   await refresh();
 });
 
+individualsOpt.addEventListener("change", saveSettings);
 ancestryOpt.addEventListener("change", saveSettings);
 ptiOpt.addEventListener("change", saveSettings);
 linearOpt.addEventListener("change", saveSettings);
