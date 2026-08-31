@@ -1,5 +1,5 @@
 import { emptyStore } from "./schema.js";
-import { mergeBatch, storeAsLists } from "./merge.js";
+import { mergeBatch, removeRow, storeAsLists } from "./merge.js";
 
 const STORE_KEY = "store";
 
@@ -57,6 +57,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "CLEAR_STORE") {
       await saveStore(emptyStore());
       return { ok: true };
+    }
+    if (message?.type === "REMOVE_ROW") {
+      const store = removeRow(await loadStore(), message.kind, message.key);
+      await saveStore(store);
+      return { ok: true, ...storeAsLists(store) };
     }
     return { ok: false, error: "unknown_message" };
   };

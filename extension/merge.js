@@ -132,3 +132,36 @@ export function storeAsLists(store) {
     ),
   };
 }
+
+function sameAnimal(a, b) {
+  return identityKey(a) === identityKey(b);
+}
+
+/**
+ * Drop one captured row. Other tables are left alone.
+ */
+export function removeRow(store, kind, key) {
+  const next = {
+    individuals: { ...(store?.individuals ?? {}) },
+    linear: { ...(store?.linear ?? {}) },
+    pti: { ...(store?.pti ?? {}) },
+  };
+  const want = String(key ?? "").trim();
+  if (!want) return next;
+
+  if (kind === "linear") {
+    delete next.linear[want];
+    return next;
+  }
+  if (kind === "pti") {
+    const hit =
+      Object.keys(next.pti).find((item) => sameAnimal(item, want)) ?? want;
+    delete next.pti[hit];
+    return next;
+  }
+
+  const hit =
+    Object.keys(next.individuals).find((item) => sameAnimal(item, want)) ?? want;
+  delete next.individuals[hit];
+  return next;
+}

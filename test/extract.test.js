@@ -9,8 +9,14 @@ import {
   registrationFromUrl,
 } from "../extension/extract.js";
 import { emptyStore, LINEAR_COLUMNS } from "../extension/schema.js";
-import { mergeBatch } from "../extension/merge.js";
-import { exportFilename, recordsToCsv, storeToZipBlob, storeToZipFiles } from "../extension/csv.js";
+import { mergeBatch, linearKey, removeRow } from "../extension/merge.js";
+import {
+  csvExportFilename,
+  exportFilename,
+  recordsToCsv,
+  storeToZipBlob,
+  storeToZipFiles,
+} from "../extension/csv.js";
 import { INDIVIDUAL_COLUMNS } from "../extension/schema.js";
 import { toAdgaRegistration, breedName } from "../extension/registration.js";
 
@@ -346,6 +352,47 @@ describe("merge", () => {
     });
     assert.equal(second.individuals.N1.breed, "N");
   });
+
+  it("removes one animal without touching LA or PTI", () => {
+    const store = mergeBatch(emptyStore(), {
+      individuals: [
+        { registration_number: "PD2237546", registered_name: "KEEP" },
+        { registration_number: "PN1352104", registered_name: "DROP" },
+      ],
+      linear: [
+        { registration_number: "PN1352104", appraisal_date: "2025", age: "03-02" },
+        { registration_number: "PD2237546", appraisal_date: "2024", age: "02-01" },
+      ],
+      pti: [
+        { registration_number: "PN1352104", pti21: "1" },
+        { registration_number: "PD2237546", pti21: "2" },
+      ],
+    });
+    const next = removeRow(store, "individuals", "N001352104");
+    assert.equal(Object.keys(next.individuals).length, 1);
+    assert.equal(next.individuals.PD2237546.registered_name, "KEEP");
+    assert.equal(Object.keys(next.linear).length, 2);
+    assert.equal(Object.keys(next.pti).length, 2);
+    assert.ok(next.pti.PN1352104);
+  });
+
+  it("removes a single LA row without dropping the animal", () => {
+    const store = mergeBatch(emptyStore(), {
+      individuals: [{ registration_number: "PD2237546" }],
+      linear: [
+        { registration_number: "PD2237546", appraisal_date: "2025", age: "03-02" },
+        { registration_number: "PD2237546", appraisal_date: "2024", age: "02-01" },
+      ],
+    });
+    const drop = linearKey({
+      registration_number: "PD2237546",
+      appraisal_date: "2025",
+      age: "03-02",
+    });
+    const next = removeRow(store, "linear", drop);
+    assert.ok(next.individuals.PD2237546);
+    assert.equal(Object.keys(next.linear).length, 1);
+  });
 });
 
 describe("csv zip", () => {
@@ -374,6 +421,10 @@ describe("csv zip", () => {
   it("names the download with a local timestamp", () => {
     const name = exportFilename(new Date("2026-08-28T16:05:00"));
     assert.equal(name, "adga-genetics-export-2026-08-28-1605.zip");
+    assert.equal(
+      csvExportFilename("linear", new Date("2026-08-28T16:05:00")),
+      "adga-genetics-linear_appraisals-2026-08-28-1605.csv",
+    );
   });
 
   it("builds a store-only zip", async () => {

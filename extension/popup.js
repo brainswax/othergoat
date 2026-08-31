@@ -1,4 +1,10 @@
-import { exportFilename, storeToZipBlob } from "./csv.js";
+import {
+  csvExportFilename,
+  exportFilename,
+  storeToCsvBlob,
+  storeToZipBlob,
+} from "./csv.js";
+import { linearKey, ptiKey } from "./merge.js";
 import { identityKey } from "./registration.js";
 
 const TABS = ["animals", "linear", "pti"];
@@ -14,12 +20,19 @@ const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
 const panelEl = document.getElementById("panel");
+const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
 const clearBtn = document.getElementById("clear");
 const tabButtons = [...document.querySelectorAll(".tabs [role='tab']")];
 
 let currentTab = "animals";
 let lastStore = { individuals: [], linear: [], pti: [] };
+
+function tabKind() {
+  if (currentTab === "linear") return "linear";
+  if (currentTab === "pti") return "pti";
+  return "individuals";
+}
 
 function formatCaptured(iso) {
   if (!iso) return "";
@@ -64,6 +77,25 @@ function titleRow(name, capturedAt) {
   return top;
 }
 
+function removeButton(kind, key) {
+  const btn = el("button", "remove");
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Remove");
+  btn.innerHTML =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8h5.6l.7-8M7 6.5v4.5M9 6.5v4.5"/></svg>';
+  btn.addEventListener("click", () => {
+    void removeItem(kind, key);
+  });
+  return btn;
+}
+
+function metaRow(text, kind, key) {
+  const row = el("div", "meta-row");
+  row.append(el("div", "meta", text));
+  row.append(removeButton(kind, key));
+  return row;
+}
+
 function renderAnimals(individuals) {
   for (const row of individuals) {
     appendItem([
@@ -71,9 +103,7 @@ function renderAnimals(individuals) {
         row.registered_name || row.registration_number,
         row.captured_at,
       ),
-      el(
-        "div",
-        "meta",
+      metaRow(
         [
           row.registration_number,
           row.date_of_birth,
@@ -81,6 +111,8 @@ function renderAnimals(individuals) {
         ]
           .filter(Boolean)
           .join(" · "),
+        "individuals",
+        row.registration_number,
       ),
     ]);
   }
@@ -91,9 +123,7 @@ function renderLinear(linear, nameOf) {
     const title = nameOf(row.registration_number);
     appendItem([
       titleRow(title || row.registration_number, row.captured_at),
-      el(
-        "div",
-        "meta",
+      metaRow(
         [
           row.registration_number,
           row.appraisal_date,
@@ -103,6 +133,8 @@ function renderLinear(linear, nameOf) {
         ]
           .filter(Boolean)
           .join(" · "),
+        "linear",
+        linearKey(row),
       ),
     ]);
   }
@@ -121,7 +153,7 @@ function renderPti(pti, nameOf) {
       .join(" · ");
     appendItem([
       titleRow(title || row.registration_number, row.captured_at),
-      el("div", "meta", row.registration_number || ""),
+      metaRow(row.registration_number || "", "pti", ptiKey(row)),
       scores ? el("div", "scores", scores) : null,
     ]);
   }
@@ -144,8 +176,11 @@ function render(store) {
   const linear = store.linear ?? [];
   const pti = store.pti ?? [];
   const count = individuals.length;
+  const tabRows =
+    currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
+  const anyRows = count + linear.length + pti.length > 0;
   statusEl.textContent =
-    count === 0
+    count === 0 && !anyRows
       ? "No animals captured yet."
       : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`;
 
@@ -158,24 +193,24 @@ function render(store) {
     button.textContent = labels[button.dataset.tab] ?? button.dataset.tab;
   }
 
-  const rows =
-    currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   listEl.replaceChildren();
-  emptyEl.hidden = rows.length > 0;
+  emptyEl.hidden = tabRows.length > 0;
   emptyEl.textContent = EMPTY_COPY[currentTab];
-  downloadBtn.disabled = count === 0;
-  clearBtn.disabled = count === 0;
+  downloadCsvBtn.disabled = tabRows.length === 0;
+  downloadBtn.disabled = !anyRows;
+  clearBtn.disabled = !anyRows;
 
-  if (rows.length === 0) return;
+  if (tabRows.length === 0) return;
   const nameOf = nameLookup(individuals);
   if (currentTab === "linear") renderLinear(linear, nameOf);
   else if (currentTab === "pti") renderPti(pti, nameOf);
   else renderAnimals(individuals);
 }
 
-function send(type) {
+function send(message) {
+  const payload = typeof message === "string" ? { type: message } : message;
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type }, (response) => {
+    chrome.runtime.sendMessage(payload, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -189,6 +224,20 @@ async function refresh() {
   const response = await send("GET_STORE");
   render(response);
   return response;
+}
+
+async function removeItem(kind, key) {
+  const response = await send({ type: "REMOVE_ROW", kind, key });
+  render(response);
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 for (const button of tabButtons) {
@@ -207,15 +256,30 @@ document.querySelector(".tabs").addEventListener("keydown", (event) => {
   document.getElementById(`tab-${next}`)?.focus();
 });
 
+downloadCsvBtn.addEventListener("click", async () => {
+  const store = await refresh();
+  const kind = tabKind();
+  const rows =
+    kind === "linear"
+      ? store.linear
+      : kind === "pti"
+        ? store.pti
+        : store.individuals;
+  if ((rows ?? []).length === 0) return;
+  downloadBlob(storeToCsvBlob(store, kind), csvExportFilename(kind));
+});
+
 downloadBtn.addEventListener("click", async () => {
   const store = await refresh();
-  if ((store.individuals ?? []).length === 0) return;
-  const url = URL.createObjectURL(storeToZipBlob(store));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = exportFilename();
-  a.click();
-  URL.revokeObjectURL(url);
+  if (
+    (store.individuals ?? []).length +
+      (store.linear ?? []).length +
+      (store.pti ?? []).length ===
+    0
+  ) {
+    return;
+  }
+  downloadBlob(storeToZipBlob(store), exportFilename());
 });
 
 clearBtn.addEventListener("click", async () => {

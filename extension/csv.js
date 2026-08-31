@@ -41,6 +41,29 @@ export function storeToZipFiles(lists) {
   ];
 }
 
+export function csvExportFilename(kind, when = new Date()) {
+  const file =
+    kind === "linear"
+      ? STORE_FILES.linear
+      : kind === "pti"
+        ? STORE_FILES.pti
+        : STORE_FILES.individuals;
+  const base = file.replace(/\.csv$/i, "");
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}-${pad(when.getHours())}${pad(when.getMinutes())}`;
+  return `adga-genetics-${base}-${stamp}.csv`;
+}
+
+export function storeToCsvBlob(lists, kind) {
+  const text =
+    kind === "linear"
+      ? recordsToCsv(lists.linear ?? [], LINEAR_COLUMNS)
+      : kind === "pti"
+        ? recordsToCsv(lists.pti ?? [], PTI_COLUMNS)
+        : recordsToCsv(lists.individuals ?? [], INDIVIDUAL_COLUMNS);
+  return new Blob([text], { type: "text/csv;charset=utf-8" });
+}
+
 export function storeToZipBlob(lists) {
   return zipStore(storeToZipFiles(lists));
 }

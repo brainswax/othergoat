@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Other Goats Records",
   "description": "Capture ADGA Genetics pages you visit and download a zip of CSVs. Data stays on this computer.",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "minimum_chrome_version": "120",
   "permissions": ["storage"],
   "background": {
