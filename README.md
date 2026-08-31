@@ -16,11 +16,11 @@ Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-exp
 
 ## Install
 
-Until this is on the Chrome Web Store, install **0.2.25** from GitHub:
+Until this is on the Chrome Web Store, install **0.2.30** from GitHub:
 
-**[Download Other Goats Records 0.2.25](https://github.com/brainswax/othergoat/releases/download/v0.2.25/other-goats-records-0.2.25.zip)**
+**[Download Other Goats Records 0.2.30](https://github.com/brainswax/othergoat/releases/download/v0.2.30/other-goats-records-0.2.30.zip)**
 
-([0.2.25 release](https://github.com/brainswax/othergoat/releases/tag/v0.2.25) · [All releases](https://github.com/brainswax/othergoat/releases))
+([0.2.30 release](https://github.com/brainswax/othergoat/releases/tag/v0.2.30) · [All releases](https://github.com/brainswax/othergoat/releases))
 
 1. Unzip the file. You should get a folder named `other-goats-records-…` that contains `manifest.json`.
 2. In Chrome, open `chrome://extensions`.
@@ -67,14 +67,15 @@ Parser, merge, and CSV helpers are plain ES modules. No compile step.
 npm run pack
 ```
 
-Writes `dist/other-goats-records-{version}.zip`. Testers unzip and **Load unpacked** on the folder that contains `manifest.json`. When you bump the manifest version, update the install zip link in this README to match.
+Writes `dist/other-goats-records-{version}.zip`. Testers unzip and **Load unpacked** on the folder that contains `manifest.json`.
 
-To publish that zip on GitHub, tag the commit with the same version as `extension/manifest.json` and push the tag:
+To publish, bump `version` in `extension/manifest.json`, merge to `main`, then:
 
 ```bash
-git tag v0.2.25
-git push origin v0.2.25
+npm run release
 ```
+
+That command reads the manifest version, points the install links in this README at it, commits if needed, tags `v{version}`, and pushes. GitHub Actions packs the zip and creates the Release. `npm run readme:version` only rewrites the links (no tag).
 
 ## What this is not
 

@@ -22,12 +22,15 @@ jobs:
           npm run pack
       - name: Tag must match manifest version
         run: |
-          version=$(node --input-type=module -e "import { readFileSync } from 'node:fs'; console.log(JSON.parse(readFileSync('extension/manifest.json','utf8')).version)")
-          tag="${GITHUB_REF_NAME#v}"
-          if [ "$tag" != "$version" ]; then
-            echo "Tag v$tag does not match manifest $version"
-            exit 1
-          fi
+          node --input-type=module <<'EOF'
+          import { readManifestVersion } from "./scripts/readme-version.mjs";
+          const version = readManifestVersion();
+          const tag = process.env.GITHUB_REF_NAME.slice(1);
+          if (tag !== version) {
+            console.error(`Tag v${tag} does not match manifest ${version}`);
+            process.exit(1);
+          }
+          EOF
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,3 +39,18 @@ jobs:
             dist/other-goats-records-*.zip \
             --title "Other Goats Records ${GITHUB_REF_NAME#v}" \
             --generate-notes
+      - name: Point README at this release
+        run: |
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          node scripts/readme-version.mjs --version "${GITHUB_REF_NAME#v}"
+          if git diff --quiet README.md; then
+            echo "README already matches ${GITHUB_REF_NAME#v}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Point README install links at ${GITHUB_REF_NAME#v}."
+          git push origin main
