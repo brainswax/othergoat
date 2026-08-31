@@ -313,6 +313,23 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linear.length, 0);
   });
 
+  it("records PTI and Linear History without an individual row", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        eventArgument: "LinearHistory",
+        text: linearText,
+        tables: [],
+      },
+      "t",
+      { recordIndividuals: false },
+    );
+    assert.equal(batch.individuals.length, 0);
+    assert.equal(batch.linear.length, 2);
+    assert.equal(batch.pti.length, 1);
+    assert.equal(batch.pti[0].pti21, "40");
+  });
+
   it("does not treat a Type Eval page as linear rows", () => {
     const batch = extractFromSnapshot({
       url: SAMPLE_URL,

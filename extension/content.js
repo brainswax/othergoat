@@ -20,8 +20,13 @@ function nowIso() {
 
 function batchKey(batch) {
   if (!batch) return "";
-  const subject = batch.individuals?.[0]?.registration_number ?? "";
+  const subject =
+    batch.individuals?.[0]?.registration_number ||
+    batch.pti?.[0]?.registration_number ||
+    batch.linear?.[0]?.registration_number ||
+    "";
   return [
+    location.href,
     subject,
     batch.view,
     batch.individuals?.length ?? 0,
@@ -150,7 +155,7 @@ function startCapture(extractFromDocument, normalizeSettings) {
       batch = null;
     }
     if (!batch) {
-      if (fromRetry && attempts < 12) {
+      if (attempts < 12) {
         attempts += 1;
         window.setTimeout(() => run(true), 400);
       }
@@ -162,7 +167,7 @@ function startCapture(extractFromDocument, normalizeSettings) {
         (batch.pti?.length ?? 0) >
       0;
     if (!hasData) {
-      if (fromRetry && attempts < 12) {
+      if (attempts < 12) {
         attempts += 1;
         window.setTimeout(() => run(true), 400);
       }
@@ -187,8 +192,9 @@ function startCapture(extractFromDocument, normalizeSettings) {
       return;
     }
     overlay.mount();
+    attempts = 0;
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => run(false), DEBOUNCE_MS);
+    timer = window.setTimeout(() => run(true), DEBOUNCE_MS);
   };
 
   const setPaused = (next) => {

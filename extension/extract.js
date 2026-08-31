@@ -175,12 +175,15 @@ export function parsePolled(text) {
 
 export function parseIndexes(text) {
   const blob = collapse(text);
-  const grab = (re) => blob.match(re)?.[1] ?? "";
+  const grab = (label) =>
+    blob.match(
+      new RegExp(`\\b${label}\\s*:?\\s*(-?\\d+(?:\\.\\d+)?)`, "i"),
+    )?.[1] ?? "";
   return {
-    pti21: grab(/\bPTI21\s*:\s*(-?\d+(?:\.\d+)?)/i),
-    pti12: grab(/\bPTI12\s*:\s*(-?\d+(?:\.\d+)?)/i),
-    eta21: grab(/\bETA21\s*:\s*(-?\d+(?:\.\d+)?)/i),
-    eta12: grab(/\bETA12\s*:\s*(-?\d+(?:\.\d+)?)/i),
+    pti21: grab("PTI\\s*21"),
+    pti12: grab("PTI\\s*12"),
+    eta21: grab("ETA\\s*21"),
+    eta12: grab("ETA\\s*12"),
   };
 }
 
@@ -656,7 +659,7 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
       );
     }
   }
-  if (view === "linear" && opts.recordLinear) {
+  if (opts.recordLinear) {
     batch.linear.push(
       ...extractLinearRows(
         page.tables,

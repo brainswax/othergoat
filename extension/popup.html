@@ -83,25 +83,24 @@
       </p>
       <form id="settings" hidden>
         <label>
-          <input type="checkbox" id="opt-individuals" />
+          <input type="checkbox" id="opt-individuals" checked />
           <span>Record individuals</span>
         </label>
         <label class="sub">
-          <input type="checkbox" id="opt-ancestry" />
+          <input type="checkbox" id="opt-ancestry" checked />
           <span>
-            Capture ancestry as individuals
+            Record ancestors
             <span class="hint"
-              >Only when recording individuals. When off, sire and dam still
-              save on the animal you open.</span
+              >When off, sire and dam still save on the animal you open.</span
             >
           </span>
         </label>
         <label>
-          <input type="checkbox" id="opt-pti" />
+          <input type="checkbox" id="opt-pti" checked />
           <span>Record PTI scores</span>
         </label>
         <label>
-          <input type="checkbox" id="opt-linear" />
+          <input type="checkbox" id="opt-linear" checked />
           <span>Record Linear History</span>
         </label>
       </form>
@@ -109,7 +108,7 @@
     <footer>
       <button type="button" id="download-csv" disabled>Download CSV</button>
       <button type="button" id="download" disabled>Download zip</button>
-      <button type="button" id="clear" disabled>Clear queue</button>
+      <button type="button" id="clear" disabled>Clear</button>
     </footer>
     <script type="module" src="popup.js"></script>
   </body>
