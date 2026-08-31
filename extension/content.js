@@ -91,7 +91,21 @@ function createPagePanel() {
         border-radius: 5px;
         flex: 0 0 auto;
       }
-      .title { flex: 1; font-weight: 600; white-space: nowrap; }
+      .title {
+        flex: 1;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .version {
+        font-weight: 400;
+        font-size: 11px;
+        color: color-mix(in srgb, CanvasText 50%, transparent);
+        font-variant-numeric: tabular-nums;
+      }
       .card[data-minimized="true"] .title { display: none; }
       .card[data-minimized="true"] .logo { cursor: pointer; }
       .label { white-space: nowrap; }
@@ -127,7 +141,10 @@ function createPagePanel() {
     <div class="card" data-minimized="false" data-paused="true">
       <div class="chrome">
         <img class="logo" alt="Other Goats Records" width="20" height="20" />
-        <span class="title">Other Goats Records</span>
+        <span class="title">
+          Other Goats Records
+          <span class="version"></span>
+        </span>
         <button type="button" class="min" aria-label="Minimize">${ICON_MIN}</button>
         <span class="label">Paused</span>
         <button type="button" class="pause" aria-label="Resume capture">${ICON_PLAY}</button>
@@ -137,6 +154,8 @@ function createPagePanel() {
   `;
   const card = shadow.querySelector(".card");
   const logo = shadow.querySelector(".logo");
+  shadow.querySelector(".version").textContent =
+    `v${chrome.runtime.getManifest().version}`;
   const minBtn = shadow.querySelector(".min");
   const pauseBtn = shadow.querySelector(".pause");
   const label = shadow.querySelector(".label");

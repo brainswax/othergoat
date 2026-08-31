@@ -32,7 +32,11 @@ h1 {
 }
 
 .masthead {
-  margin: 0 0 2px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
 }
 
 html[data-docked] {
@@ -50,14 +54,10 @@ html[data-docked] .masthead {
 }
 
 #version {
-  margin: 2px 0 6px;
+  margin: 0;
   color: color-mix(in srgb, CanvasText 50%, transparent);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-}
-
-html[data-docked] #version {
-  margin: 0 0 8px;
 }
 
 #status {
@@ -105,7 +105,7 @@ html[data-docked] #version {
 }
 
 .search-bar {
-  padding: 8px 0 10px;
+  padding: 0 0 8px;
 }
 
 .search-bar[hidden] {
