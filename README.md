@@ -37,7 +37,7 @@ Chrome will warn that this is an unpacked developer extension. That is expected 
 3. **Load unpacked** and choose the `extension/` folder in this repo.
 4. Browse animal pages such as  
    `https://genetics.adga.org/GoatDetail.aspx?RegNumber=…`
-5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows). Pause/play sits in the Genetics header (same spot as the pinned panel) if you want to stop capturing without closing the tab.
+5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows). On Genetics pages, the panel stays in the header — pause/play and minimize/maximize persist. Off Genetics, use the toolbar icon.
 6. Click the extension icon for the queue, **Settings** (what to capture), and **Download zip**  
    (`adga-genetics-export-YYYY-MM-DD-HHmm.zip`).
 

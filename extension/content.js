@@ -8,8 +8,7 @@ const DEBOUNCE_MS = 800;
 const PAUSED_KEY = "paused";
 const SETTINGS_KEY = "settings";
 const PANEL_ID = "ogr-page-host";
-const PINNED_KEY = "pinned";
-const PINNED_MIN_KEY = "pinnedMinimized";
+const MINIMIZED_KEY = "pinnedMinimized";
 
 const ICON_PAUSE =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/></svg>';
@@ -20,8 +19,6 @@ const ICON_MIN =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M3.5 8h9"/></svg>';
 const ICON_MAX =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/></svg>';
-const ICON_UNPIN =
-  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5zM3.2 3.2l9.6 9.6"/></svg>';
 
 function createPagePanel() {
   const existing = document.getElementById(PANEL_ID);
@@ -53,7 +50,6 @@ function createPagePanel() {
         color-scheme: light dark;
         overflow: hidden;
       }
-      .card[data-pinned="false"],
       .card[data-minimized="true"] {
         width: auto;
         border-radius: 999px;
@@ -66,7 +62,6 @@ function createPagePanel() {
         border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
         cursor: default;
       }
-      .card[data-pinned="false"] .chrome,
       .card[data-minimized="true"] .chrome { border-bottom: 0; }
       .title { flex: 1; font-weight: 600; white-space: nowrap; }
       .label { white-space: nowrap; }
@@ -87,10 +82,6 @@ function createPagePanel() {
       .chrome button:hover, .chrome button:focus-visible {
         background: color-mix(in srgb, CanvasText 16%, transparent);
       }
-      .card[data-pinned="false"] .title,
-      .card[data-pinned="false"] .min,
-      .card[data-pinned="false"] .unpin,
-      .card[data-pinned="false"] iframe,
       .card[data-minimized="true"] iframe { display: none; }
       iframe {
         display: block;
@@ -101,11 +92,10 @@ function createPagePanel() {
         background: Canvas;
       }
     </style>
-    <div class="card" data-pinned="false" data-minimized="false" data-paused="true">
+    <div class="card" data-minimized="false" data-paused="true">
       <div class="chrome">
         <span class="title">Other Goats Records</span>
         <button type="button" class="min" aria-label="Minimize">${ICON_MIN}</button>
-        <button type="button" class="unpin" aria-label="Unpin" title="Unpin from Genetics">${ICON_UNPIN}</button>
         <span class="label">Paused</span>
         <button type="button" class="pause" aria-label="Resume capture">${ICON_PLAY}</button>
       </div>
@@ -114,27 +104,18 @@ function createPagePanel() {
   `;
   const card = shadow.querySelector(".card");
   const minBtn = shadow.querySelector(".min");
-  const unpinBtn = shadow.querySelector(".unpin");
   const pauseBtn = shadow.querySelector(".pause");
   const label = shadow.querySelector(".label");
   const frame = shadow.querySelector("iframe");
-  let frameReady = false;
-  const ensureFrame = () => {
-    if (frameReady) return;
-    frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
-    frameReady = true;
-  };
+  frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
   minBtn.addEventListener("click", () => {
     const next = card.dataset.minimized !== "true";
-    chrome.storage.local.set({ [PINNED_MIN_KEY]: next });
+    chrome.storage.local.set({ [MINIMIZED_KEY]: next });
   });
   shadow.querySelector(".title").addEventListener("click", () => {
     if (card.dataset.minimized === "true") {
-      chrome.storage.local.set({ [PINNED_MIN_KEY]: false });
+      chrome.storage.local.set({ [MINIMIZED_KEY]: false });
     }
-  });
-  unpinBtn.addEventListener("click", () => {
-    chrome.storage.local.set({ [PINNED_KEY]: false, [PINNED_MIN_KEY]: false });
   });
   pauseBtn.addEventListener("click", () => {
     chrome.storage.local.set({
@@ -149,10 +130,8 @@ function createPagePanel() {
   return {
     host,
     mount,
-    render({ pinned, minimized, paused }) {
+    render({ minimized, paused }) {
       mount();
-      if (pinned) ensureFrame();
-      card.dataset.pinned = pinned ? "true" : "false";
       card.dataset.minimized = minimized ? "true" : "false";
       card.dataset.paused = paused ? "true" : "false";
       label.textContent = paused ? "Paused" : "Capturing";
@@ -169,26 +148,21 @@ function createPagePanel() {
 
 function startPagePanel() {
   const panel = createPagePanel();
-  let pinned = false;
   let minimized = false;
   let paused = true;
-  const apply = () => panel.render({ pinned, minimized, paused });
-  chrome.storage.local.get([PINNED_KEY, PINNED_MIN_KEY, PAUSED_KEY], (data) => {
-    pinned = Boolean(data[PINNED_KEY]);
-    minimized = Boolean(data[PINNED_MIN_KEY]);
+  const apply = () => panel.render({ minimized, paused });
+  chrome.storage.local.get([MINIMIZED_KEY, PAUSED_KEY], (data) => {
+    minimized = Boolean(data[MINIMIZED_KEY]);
     paused = Boolean(data[PAUSED_KEY]);
     apply();
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes[PINNED_KEY]) pinned = Boolean(changes[PINNED_KEY].newValue);
-    if (changes[PINNED_MIN_KEY]) {
-      minimized = Boolean(changes[PINNED_MIN_KEY].newValue);
+    if (changes[MINIMIZED_KEY]) {
+      minimized = Boolean(changes[MINIMIZED_KEY].newValue);
     }
     if (changes[PAUSED_KEY]) paused = Boolean(changes[PAUSED_KEY].newValue);
-    if (changes[PINNED_KEY] || changes[PINNED_MIN_KEY] || changes[PAUSED_KEY]) {
-      apply();
-    }
+    if (changes[MINIMIZED_KEY] || changes[PAUSED_KEY]) apply();
   });
   apply();
   return panel;

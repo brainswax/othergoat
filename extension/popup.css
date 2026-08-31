@@ -32,40 +32,7 @@ h1 {
 }
 
 .masthead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
   margin: 0 0 2px;
-}
-
-.titles {
-  min-width: 0;
-}
-
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  margin: -4px -4px 0 0;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: color-mix(in srgb, CanvasText 55%, transparent);
-  cursor: pointer;
-}
-
-.icon-btn:hover,
-.icon-btn:focus-visible {
-  color: CanvasText;
-  background: color-mix(in srgb, CanvasText 8%, transparent);
-}
-
-.icon-btn[aria-pressed="true"] {
-  color: CanvasText;
 }
 
 html[data-docked] {

@@ -3,7 +3,6 @@ import { mergeBatch, removeRow, storeAsLists } from "./merge.js";
 
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
-const PINNED_KEY = "pinned";
 const POPUP_PATH = "popup.html";
 
 function isGeneticsUrl(url) {
@@ -15,13 +14,13 @@ function isGeneticsUrl(url) {
 }
 
 async function syncActionPopup() {
-  const [{ pinned } = {}, tabs] = await Promise.all([
-    chrome.storage.local.get(PINNED_KEY),
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }),
-  ]);
+  const tabs = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
   const onGenetics = isGeneticsUrl(tabs[0]?.url ?? "");
   await chrome.action.setPopup({
-    popup: pinned && onGenetics ? "" : POPUP_PATH,
+    popup: onGenetics ? "" : POPUP_PATH,
   });
 }
 
@@ -77,9 +76,6 @@ chrome.runtime.onStartup.addListener(() => {
 void syncBadge();
 void syncActionPopup();
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes[PINNED_KEY]) void syncActionPopup();
-});
 chrome.tabs.onActivated.addListener(() => {
   void syncActionPopup();
 });
@@ -90,7 +86,7 @@ chrome.windows.onFocusChanged.addListener(() => {
   void syncActionPopup();
 });
 chrome.action.onClicked.addListener(() => {
-  /* Popup is cleared while pinned on Genetics; click is a no-op. */
+  /* On Genetics the page panel is the UI; badge click is a no-op. */
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

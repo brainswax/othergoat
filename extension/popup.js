@@ -16,8 +16,6 @@ const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
-const PINNED_KEY = "pinned";
-const PINNED_MIN_KEY = "pinnedMinimized";
 const docked = new URLSearchParams(location.search).has("docked");
 if (docked) document.documentElement.dataset.docked = "true";
 const EMPTY_COPY = {
@@ -41,7 +39,6 @@ const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
 const clearBtn = document.getElementById("clear");
 const tabButtons = [...document.querySelectorAll(".tabs [role='tab']")];
-const pinBtn = document.getElementById("pin");
 
 document.getElementById("version").textContent =
   `v${chrome.runtime.getManifest().version}`;
@@ -404,50 +401,10 @@ chrome.storage.local.get(SETTINGS_KEY, (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
 });
 
-const ICON_PIN =
-  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5z"/></svg>';
-const ICON_UNPIN =
-  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5zM3.2 3.2l9.6 9.6"/></svg>';
-
-function paintPin(pinned) {
-  pinBtn.setAttribute("aria-pressed", pinned ? "true" : "false");
-  pinBtn.setAttribute(
-    "aria-label",
-    pinned ? "Unpin from Genetics" : "Pin over Genetics",
-  );
-  pinBtn.title = pinned
-    ? "Stop keeping this panel open on Genetics pages"
-    : "Keep this panel open on Genetics pages";
-  pinBtn.innerHTML = pinned ? ICON_UNPIN : ICON_PIN;
-}
-
-pinBtn.addEventListener("click", () => {
-  const next = pinBtn.getAttribute("aria-pressed") !== "true";
-  chrome.storage.local.set({ [PINNED_KEY]: next, [PINNED_MIN_KEY]: false }, () => {
-    if (!next || docked) return;
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      try {
-        if (new URL(tabs[0]?.url ?? "").hostname === "genetics.adga.org") {
-          window.close();
-        }
-      } catch {
-        /* stay open */
-      }
-    });
-  });
-});
-
-chrome.storage.local.get(PINNED_KEY, (data) => {
-  paintPin(Boolean(data[PINNED_KEY]));
-});
-
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes[STORE_KEY] || changes[PAUSED_KEY]) {
     void refresh();
-  }
-  if (changes[PINNED_KEY]) {
-    paintPin(Boolean(changes[PINNED_KEY].newValue));
   }
 });
 
