@@ -10,6 +10,7 @@ import {
   DEFAULT_SETTINGS,
   isIndividualComplete,
   normalizeSettings,
+  scrapeStatus,
 } from "./schema.js";
 
 const TABS = ["animals", "linear", "pti", "settings"];
@@ -90,39 +91,66 @@ function appendItem(parts) {
 const CHECK_SVG =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
 
-function scrapeMark(label, done, doneTitle, needTitle) {
-  const mark = document.createElement("span");
-  mark.className = done ? "complete" : "complete is-pending";
-  mark.title = done ? doneTitle : needTitle;
-  if (done) {
+function scrapeMark(label, status, titles, url) {
+  const mark = url ? el("a", "") : el("span", "");
+  mark.className = `complete is-${status}`;
+  mark.title = titles[status] ?? titles.missing;
+  if (url) {
+    mark.href = url;
+    mark.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openGoatPage(url);
+    });
+  }
+  if (status === "found" || status === "empty") {
     mark.innerHTML = CHECK_SVG;
-    mark.append(el("span", "sr-only", `${label} complete`));
+    mark.append(
+      el(
+        "span",
+        "sr-only",
+        status === "empty" ? `${label} visited, no data` : `${label} complete`,
+      ),
+    );
   } else {
     mark.append(el("span", "mark-label", label));
   }
   return mark;
 }
 
-function scrapeMarks(flags = {}) {
+function scrapeMarks(flags = {}, registration = "", sourceUrl = "") {
+  const pedigree = goatDetailUrl(registration, sourceUrl);
+  const linear = goatDetailUrl(registration, sourceUrl, "linear");
   const wrap = el("span", "marks");
   wrap.append(
     scrapeMark(
       "ID",
       flags.identity,
-      "Has full identity from this animal’s Genetics page",
-      "Visit this animal’s Genetics page for identity",
+      {
+        found: "Has full identity from this animal’s Genetics page",
+        missing: "Visit this animal’s Genetics page for identity",
+      },
+      pedigree,
     ),
     scrapeMark(
       "LA",
       flags.linear,
-      "Linear History captured",
-      "Open Linear History on this animal",
+      {
+        found: "Linear History captured",
+        empty: "Linear History visited; no appraisals",
+        missing: "Open Linear History on this animal",
+      },
+      linear,
     ),
     scrapeMark(
       "PTI",
       flags.pti,
-      "PTI captured",
-      "Visit this animal’s Genetics page for PTI",
+      {
+        found: "PTI captured",
+        empty: "Visited; no PTI scores",
+        missing: "Visit this animal’s Genetics page for PTI",
+      },
+      pedigree,
     ),
   );
   return wrap;
@@ -140,15 +168,9 @@ function flagsOf(registration, individuals, linear, pti) {
     (item) => identityKey(item.registration_number) === identityKey(registration || ""),
   );
   return {
-    identity: isIndividualComplete(row),
-    linear:
-      row?.linear_complete === false
-        ? false
-        : Boolean(row?.linear_complete) || hasRows(linear, registration),
-    pti:
-      row?.pti_complete === false
-        ? false
-        : Boolean(row?.pti_complete) || hasRows(pti, registration),
+    identity: isIndividualComplete(row) ? "found" : "missing",
+    linear: scrapeStatus(row?.linear_complete, hasRows(linear, registration)),
+    pti: scrapeStatus(row?.pti_complete, hasRows(pti, registration)),
   };
 }
 
@@ -177,7 +199,9 @@ function nameLink(name, registration, sourceUrl) {
 function titleRow(name, capturedAt, opts = {}) {
   const top = el("div", "row");
   const left = el("div", "title");
-  if (opts.marks) left.append(scrapeMarks(opts.marks));
+  if (opts.marks) {
+    left.append(scrapeMarks(opts.marks, opts.registration, opts.sourceUrl));
+  }
   left.append(
     opts.registration
       ? nameLink(name, opts.registration, opts.sourceUrl)

@@ -8,7 +8,13 @@ import {
   parsePedigreeNodes,
   registrationFromUrl,
 } from "../extension/extract.js";
-import { emptyStore, LINEAR_COLUMNS, INDIVIDUAL_COLUMNS, isIndividualComplete } from "../extension/schema.js";
+import {
+  emptyStore,
+  LINEAR_COLUMNS,
+  INDIVIDUAL_COLUMNS,
+  isIndividualComplete,
+  scrapeStatus,
+} from "../extension/schema.js";
 import { mergeBatch, linearKey, removeRow, storeAsLists } from "../extension/merge.js";
 import {
   csvExportFilename,
@@ -90,6 +96,27 @@ describe("goatDetailUrl", () => {
       goatDetailUrl("N1201234", SAMPLE_URL),
       "https://genetics.adga.org/GoatDetail.aspx?RegNumber=N001201234",
     );
+  });
+
+  it("adds a Linear History hash and strips it for pedigree", () => {
+    assert.equal(
+      goatDetailUrl("PN1352104", SAMPLE_URL, "linear"),
+      `${SAMPLE_URL}#ogr-linear`,
+    );
+    assert.equal(
+      goatDetailUrl("PN1352104", `${SAMPLE_URL}#ogr-linear`),
+      SAMPLE_URL,
+    );
+  });
+});
+
+describe("scrapeStatus", () => {
+  it("distinguishes found, empty visit, and not visited", () => {
+    assert.equal(scrapeStatus(true, true), "found");
+    assert.equal(scrapeStatus(undefined, true), "found");
+    assert.equal(scrapeStatus(true, false), "empty");
+    assert.equal(scrapeStatus(false, true), "missing");
+    assert.equal(scrapeStatus(undefined, false), "missing");
   });
 });
 

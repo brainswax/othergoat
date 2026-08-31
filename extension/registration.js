@@ -88,7 +88,8 @@ export function toGeneticsRegNumber(value) {
  * GoatDetail URL for a registration. Prefer source_url when it already
  * points at this animal; otherwise rebuild from the paper / Genetics ID.
  */
-export function goatDetailUrl(registration, sourceUrl = "") {
+export function goatDetailUrl(registration, sourceUrl = "", view = "") {
+  let href = "";
   try {
     if (sourceUrl) {
       const parsed = new URL(sourceUrl);
@@ -98,17 +99,32 @@ export function goatDetailUrl(registration, sourceUrl = "") {
       ) {
         const fromPage = (parsed.searchParams.get("RegNumber") ?? "").trim();
         if (fromPage && identityKey(fromPage) === identityKey(registration)) {
-          return sourceUrl;
+          href = sourceUrl;
         }
       }
     }
   } catch {
     /* rebuild below */
   }
-  const genetics = toGeneticsRegNumber(registration);
-  return genetics
-    ? `https://genetics.adga.org/GoatDetail.aspx?RegNumber=${genetics}`
-    : "";
+  if (!href) {
+    const genetics = toGeneticsRegNumber(registration);
+    href = genetics
+      ? `https://genetics.adga.org/GoatDetail.aspx?RegNumber=${genetics}`
+      : "";
+  }
+  return withGeneticsView(href, view);
+}
+
+function withGeneticsView(href, view) {
+  if (!href) return "";
+  if (view !== "linear" && !href.includes("#ogr-linear")) return href;
+  try {
+    const url = new URL(href);
+    url.hash = view === "linear" ? "ogr-linear" : "";
+    return url.toString();
+  } catch {
+    return href;
+  }
 }
 
 /** Genetics / certificate letter, e.g. D from PD2237546 or D002237546. */

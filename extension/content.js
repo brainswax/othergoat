@@ -380,6 +380,62 @@ function startCapture(extractFromDocument, normalizeSettings, pagePanel) {
 
 const pagePanel = startPagePanel();
 
+const VIEW_SS = "__ogr_view";
+const LINEAR_HASH = "#ogr-linear";
+
+function menuText(node) {
+  return String(node?.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function findLinearMenu(doc) {
+  return [...doc.querySelectorAll("a")].find(
+    (anchor) => menuText(anchor) === "linear history",
+  );
+}
+
+function pageLooksLinear(doc) {
+  const text = doc.body?.innerText ?? "";
+  return /Appraisal History For:/i.test(text) && /Linear Traits/i.test(text);
+}
+
+function startViewOpener() {
+  const tryOpen = (remaining) => {
+    if (location.hash === LINEAR_HASH) {
+      try {
+        sessionStorage.setItem(VIEW_SS, "linear");
+      } catch {
+        /* ignore */
+      }
+      history.replaceState(null, "", `${location.pathname}${location.search}`);
+    }
+    let want = "";
+    try {
+      want = sessionStorage.getItem(VIEW_SS) ?? "";
+    } catch {
+      /* ignore */
+    }
+    if (want !== "linear") return;
+    if (pageLooksLinear(document)) {
+      try {
+        sessionStorage.removeItem(VIEW_SS);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    const link = findLinearMenu(document);
+    if (link) {
+      link.click();
+      return;
+    }
+    if (remaining > 0) window.setTimeout(() => tryOpen(remaining - 1), 300);
+  };
+  window.addEventListener("hashchange", () => tryOpen(12));
+  tryOpen(12);
+}
+
+startViewOpener();
+
 function boot(remaining) {
   import(chrome.runtime.getURL("extract.js"))
     .then((mod) =>

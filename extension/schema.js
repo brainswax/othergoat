@@ -44,6 +44,13 @@ export function isPtiComplete(row) {
   return Boolean(row?.pti_complete);
 }
 
+/** found = have data, empty = visited with none, missing = not visited. */
+export function scrapeStatus(visited, hasData) {
+  if (hasData && visited !== false) return "found";
+  if (visited === true && !hasData) return "empty";
+  return "missing";
+}
+
 /** Complete animals first, then registered name, then registration. */
 export function compareIndividuals(a, b) {
   const complete =
