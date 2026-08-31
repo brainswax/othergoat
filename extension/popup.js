@@ -56,14 +56,29 @@ function appendItem(parts) {
   listEl.append(li);
 }
 
+function titleRow(name, capturedAt) {
+  const top = el("div", "row");
+  top.append(el("div", "name", name));
+  const when = formatCaptured(capturedAt);
+  if (when) top.append(el("div", "when", when));
+  return top;
+}
+
 function renderAnimals(individuals) {
   for (const row of individuals) {
     appendItem([
-      el("div", "name", row.registered_name || row.registration_number),
+      titleRow(
+        row.registered_name || row.registration_number,
+        row.captured_at,
+      ),
       el(
         "div",
         "meta",
-        [row.registration_number, formatCaptured(row.captured_at)]
+        [
+          row.registration_number,
+          row.date_of_birth,
+          (row.herdbook ?? "").trim().toUpperCase(),
+        ]
           .filter(Boolean)
           .join(" · "),
       ),
@@ -74,18 +89,21 @@ function renderAnimals(individuals) {
 function renderLinear(linear, nameOf) {
   for (const row of linear) {
     const title = nameOf(row.registration_number);
-    const meta = [
-      row.registration_number,
-      row.appraisal_date,
-      row.age,
-      row.final_score ? `FS ${row.final_score}` : "",
-      row.majors,
-    ]
-      .filter(Boolean)
-      .join(" · ");
     appendItem([
-      el("div", "name", title || row.registration_number),
-      el("div", "meta", meta),
+      titleRow(title || row.registration_number, row.captured_at),
+      el(
+        "div",
+        "meta",
+        [
+          row.registration_number,
+          row.appraisal_date,
+          row.age,
+          row.final_score ? `FS ${row.final_score}` : "",
+          row.majors,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      ),
     ]);
   }
 }
@@ -102,7 +120,7 @@ function renderPti(pti, nameOf) {
       .filter(Boolean)
       .join(" · ");
     appendItem([
-      el("div", "name", title || row.registration_number),
+      titleRow(title || row.registration_number, row.captured_at),
       el("div", "meta", row.registration_number || ""),
       scores ? el("div", "scores", scores) : null,
     ]);

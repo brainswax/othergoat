@@ -76,8 +76,27 @@ main {
   border-bottom: 1px solid color-mix(in srgb, CanvasText 10%, transparent);
 }
 
+#list .row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 #list .name {
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#list .when {
+  flex-shrink: 0;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 #list .meta,

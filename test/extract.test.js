@@ -12,7 +12,7 @@ import { emptyStore, LINEAR_COLUMNS } from "../extension/schema.js";
 import { mergeBatch } from "../extension/merge.js";
 import { exportFilename, recordsToCsv, storeToZipBlob, storeToZipFiles } from "../extension/csv.js";
 import { INDIVIDUAL_COLUMNS } from "../extension/schema.js";
-import { toAdgaRegistration } from "../extension/registration.js";
+import { toAdgaRegistration, breedName } from "../extension/registration.js";
 
 const SAMPLE_URL =
   "https://genetics.adga.org/GoatDetail.aspx?RegNumber=N001352104";
@@ -44,6 +44,14 @@ describe("toAdgaRegistration", () => {
     assert.equal(toAdgaRegistration("N001352104", "PB"), "PN1352104");
     assert.equal(toAdgaRegistration("D002237546"), "D2237546");
     assert.equal(toAdgaRegistration("PD2237546"), "PD2237546");
+  });
+});
+
+describe("breedName", () => {
+  it("maps Genetics breed letters and registration prefixes", () => {
+    assert.equal(breedName("D"), "Nigerian Dwarf");
+    assert.equal(breedName("PD2237546"), "Nigerian Dwarf");
+    assert.equal(breedName("N"), "Nubian");
   });
 });
 

@@ -54,10 +54,38 @@ export function toAdgaRegistration(value, herdbook = "") {
   return raw;
 }
 
+export const BREED_NAMES = {
+  A: "Alpine",
+  B: "Oberhasli",
+  C: "Sable",
+  D: "Nigerian Dwarf",
+  E: "Experimental",
+  L: "LaMancha",
+  N: "Nubian",
+  S: "Saanen",
+  T: "Toggenburg",
+  R: "Guernsey",
+  X: "Unknown",
+};
+
 /** Breed + digits, so PD2237546 and D2237546 match. */
 export function identityKey(reg) {
   const adga = toAdgaRegistration(reg);
   const cert = adga.match(/^([PAGR])([A-Z])(\d+)$/);
   if (cert) return `${cert[2]}${cert[3]}`;
   return adga;
+}
+
+/** Genetics / certificate letter, e.g. D from PD2237546 or D002237546. */
+export function breedLetter(value) {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (BREED_NAMES[raw]) return raw;
+  const key = identityKey(raw);
+  const match = key.match(/^([A-Z])/);
+  return match && BREED_NAMES[match[1]] ? match[1] : "";
+}
+
+export function breedName(value) {
+  const letter = breedLetter(value);
+  return letter ? BREED_NAMES[letter] : "";
 }
