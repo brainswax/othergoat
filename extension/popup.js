@@ -279,13 +279,13 @@ function render(store) {
   const tabRows =
     currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   const anyRows = count + linear.length + pti.length > 0;
-  statusEl.textContent =
-    (store.paused ? "Paused. " : "") +
-    (onSettings
-      ? "Changes apply to the Genetics page that’s open."
-      : count === 0 && !anyRows
-        ? "No animals captured yet."
-        : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`);
+  if (store.paused) {
+    statusEl.hidden = false;
+    statusEl.textContent = "Paused.";
+  } else {
+    statusEl.textContent = "";
+    statusEl.hidden = true;
+  }
 
   const labels = {
     animals: count ? `Animals (${count})` : "Animals",
@@ -437,5 +437,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 refresh().catch((err) => {
+  statusEl.hidden = false;
   statusEl.textContent = `Could not load queue: ${err.message}`;
 });

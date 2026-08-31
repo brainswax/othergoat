@@ -31,11 +31,16 @@ h1 {
   font-size: 14px;
 }
 
-.brand-actions {
+.masthead {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 2px;
+}
+
+.titles {
+  min-width: 0;
 }
 
 .icon-btn {
@@ -44,6 +49,7 @@ h1 {
   justify-content: center;
   width: 26px;
   height: 26px;
+  margin: -4px -4px 0 0;
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -72,13 +78,12 @@ html[data-docked] body {
   max-height: none;
 }
 
-html[data-docked] .brand {
+html[data-docked] .masthead {
   display: none;
 }
 
 #version {
-  margin: 0;
-  flex-shrink: 0;
+  margin: 2px 0 6px;
   color: color-mix(in srgb, CanvasText 50%, transparent);
   font-size: 11px;
   font-variant-numeric: tabular-nums;

@@ -21,8 +21,8 @@ const ICON_MIN =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M3.5 8h9"/></svg>';
 const ICON_MAX =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/></svg>';
-const ICON_CLOSE =
-  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="m4 4 8 8M12 4l-8 8"/></svg>';
+const ICON_UNPIN =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5zM3.2 3.2l9.6 9.6"/></svg>';
 
 function createPinPanel() {
   const existing = document.getElementById(PANEL_ID);
@@ -33,7 +33,7 @@ function createPinPanel() {
   host.style.cssText = [
     "all: initial",
     "position: fixed",
-    "top: 12px",
+    "top: 38px",
     "right: 12px",
     "z-index: 2147483646",
   ].join(";");
@@ -84,6 +84,9 @@ function createPinPanel() {
       .chrome button:hover, .chrome button:focus-visible {
         background: color-mix(in srgb, CanvasText 16%, transparent);
       }
+      .chrome .unpin {
+        color: CanvasText;
+      }
       iframe {
         display: block;
         width: 400px;
@@ -98,14 +101,14 @@ function createPinPanel() {
       <div class="chrome">
         <span class="title">Other Goats Records</span>
         <button type="button" class="min" aria-label="Minimize">${ICON_MIN}</button>
-        <button type="button" class="close" aria-label="Unpin">${ICON_CLOSE}</button>
+        <button type="button" class="unpin" aria-label="Unpin" title="Unpin from Genetics">${ICON_UNPIN}</button>
       </div>
       <iframe title="Other Goats Records"></iframe>
     </div>
   `;
   const card = shadow.querySelector(".card");
   const minBtn = shadow.querySelector(".min");
-  const closeBtn = shadow.querySelector(".close");
+  const unpinBtn = shadow.querySelector(".unpin");
   const frame = shadow.querySelector("iframe");
   frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
   minBtn.addEventListener("click", () => {
@@ -117,7 +120,7 @@ function createPinPanel() {
       chrome.storage.local.set({ [PINNED_MIN_KEY]: false });
     }
   });
-  closeBtn.addEventListener("click", () => {
+  unpinBtn.addEventListener("click", () => {
     chrome.storage.local.set({ [PINNED_KEY]: false, [PINNED_MIN_KEY]: false });
   });
 
