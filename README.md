@@ -23,7 +23,7 @@ Goatsmith zip import is later (herdsmith P-18).
 3. **Load unpacked** and choose the `extension/` folder in this repo.
 4. Browse animal pages such as  
    `https://genetics.adga.org/GoatDetail.aspx?RegNumber=…`
-5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows).
+5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows). A pause/play control sits at the bottom-right of Genetics pages if you want to stop capturing without closing the tab.
 6. Click the extension icon → **Download zip**  
    (`adga-genetics-export-YYYY-MM-DD-HHmm.zip`).
 

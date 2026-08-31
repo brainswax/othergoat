@@ -180,9 +180,10 @@ function render(store) {
     currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   const anyRows = count + linear.length + pti.length > 0;
   statusEl.textContent =
-    count === 0 && !anyRows
+    (store.paused ? "Paused. " : "") +
+    (count === 0 && !anyRows
       ? "No animals captured yet."
-      : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`;
+      : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`);
 
   const labels = {
     animals: count ? `Animals (${count})` : "Animals",

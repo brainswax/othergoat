@@ -5,6 +5,13 @@
  */
 
 const DEBOUNCE_MS = 800;
+const PAUSED_KEY = "paused";
+const HOST_ID = "ogr-capture-host";
+
+const ICON_PAUSE =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/></svg>';
+const ICON_PLAY =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5 2.7v10.6L13.2 8z"/></svg>';
 
 function nowIso() {
   return new Date().toISOString();
@@ -41,13 +48,99 @@ function sendBatch(batch, remaining = 3) {
   }
 }
 
+function mountOverlay(onToggle) {
+  const existing = document.getElementById(HOST_ID);
+  if (existing) existing.remove();
+
+  const host = document.createElement("div");
+  host.id = HOST_ID;
+  host.style.cssText = [
+    "all: initial",
+    "position: fixed",
+    "right: 12px",
+    "bottom: 12px",
+    "z-index: 2147483647",
+  ].join(";");
+  const shadow = host.attachShadow({ mode: "open" });
+  shadow.innerHTML = `
+    <style>
+      :host { all: initial; }
+      @media print { .bar { display: none !important; } }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px 6px 10px;
+        border-radius: 999px;
+        background: Canvas;
+        color: CanvasText;
+        border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+        box-shadow: 0 1px 6px color-mix(in srgb, CanvasText 18%, transparent);
+        font: 12px/1.2 system-ui, sans-serif;
+        color-scheme: light dark;
+      }
+      .label { white-space: nowrap; }
+      .bar[data-paused="true"] .label { opacity: 0.75; }
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: color-mix(in srgb, CanvasText 8%, transparent);
+        color: inherit;
+        cursor: pointer;
+      }
+      button:hover, button:focus-visible {
+        background: color-mix(in srgb, CanvasText 16%, transparent);
+      }
+    </style>
+    <div class="bar" data-paused="false">
+      <span class="label">Capturing</span>
+      <button type="button" aria-label="Pause capture">${ICON_PAUSE}</button>
+    </div>
+  `;
+  const bar = shadow.querySelector(".bar");
+  const label = shadow.querySelector(".label");
+  const button = shadow.querySelector("button");
+  button.addEventListener("click", () => onToggle());
+
+  const mount = () => {
+    if (!host.isConnected) document.documentElement.appendChild(host);
+  };
+  mount();
+
+  return {
+    host,
+    mount,
+    render(paused) {
+      bar.dataset.paused = paused ? "true" : "false";
+      label.textContent = paused ? "Paused" : "Capturing";
+      button.setAttribute("aria-label", paused ? "Resume capture" : "Pause capture");
+      button.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+    },
+  };
+}
+
 function startCapture(extractFromDocument) {
   let lastKey = "";
   let lastAt = 0;
   let timer = 0;
   let attempts = 0;
+  let paused = true;
+  let observer = null;
+
+  const overlay = mountOverlay(() => {
+    chrome.storage.local.set({ [PAUSED_KEY]: !paused });
+  });
+  overlay.render(true);
 
   const run = (fromRetry) => {
+    if (paused) return;
+    overlay.mount();
     let batch = null;
     try {
       batch = extractFromDocument(document, location.href, nowIso());
@@ -70,15 +163,47 @@ function startCapture(extractFromDocument) {
     sendBatch(batch);
   };
 
-  const schedule = () => {
+  const schedule = (records) => {
+    if (paused) return;
+    if (
+      records &&
+      records.length > 0 &&
+      records.every((record) => overlay.host.contains(record.target))
+    ) {
+      return;
+    }
+    overlay.mount();
     window.clearTimeout(timer);
     timer = window.setTimeout(() => run(false), DEBOUNCE_MS);
   };
 
-  run(true);
-  if (!document.body) return;
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.body, {
+  const setPaused = (next) => {
+    const wasPaused = paused;
+    paused = next;
+    overlay.render(paused);
+    if (paused) {
+      window.clearTimeout(timer);
+      attempts = 12;
+      return;
+    }
+    if (wasPaused) {
+      lastKey = "";
+      attempts = 0;
+      run(true);
+    }
+  };
+
+  chrome.storage.local.get(PAUSED_KEY, (data) => {
+    setPaused(Boolean(data[PAUSED_KEY]));
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes[PAUSED_KEY]) return;
+    setPaused(Boolean(changes[PAUSED_KEY].newValue));
+  });
+
+  observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
     characterData: true,
