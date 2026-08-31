@@ -20,7 +20,7 @@ Until this is on the Chrome Web Store, install from the latest GitHub Release:
 
 **[Download Other Goats Records (latest)](https://github.com/brainswax/othergoat/releases/latest/download/other-goats-records.zip)**
 
-([All releases](https://github.com/brainswax/othergoat/releases/latest))
+([All releases](https://github.com/brainswax/othergoat/releases))
 
 1. Unzip the file. You should get a folder named `other-goats-records-…` that contains `manifest.json`.
 2. In Chrome, open `chrome://extensions`.
