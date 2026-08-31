@@ -14,9 +14,35 @@ async function loadStore() {
   };
 }
 
+function badgeText(count) {
+  if (!count) return "";
+  if (count > 999) return "999+";
+  return String(count);
+}
+
+async function updateBadge(store) {
+  const count = Object.keys(store?.individuals ?? {}).length;
+  await chrome.action.setBadgeBackgroundColor({ color: "#2e5a3c" });
+  await chrome.action.setBadgeTextColor({ color: "#ffffff" });
+  await chrome.action.setBadgeText({ text: badgeText(count) });
+}
+
 async function saveStore(store) {
   await chrome.storage.local.set({ [STORE_KEY]: store });
+  await updateBadge(store);
 }
+
+async function syncBadge() {
+  await updateBadge(await loadStore());
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  void syncBadge();
+});
+chrome.runtime.onStartup.addListener(() => {
+  void syncBadge();
+});
+void syncBadge();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const run = async () => {
