@@ -9,6 +9,27 @@ const PAUSED_KEY = "paused";
 const SETTINGS_KEY = "settings";
 const PANEL_ID = "ogr-page-host";
 const MINIMIZED_KEY = "pinnedMinimized";
+const SS_MINIMIZED = "__ogr_minimized";
+const SS_PAUSED = "__ogr_paused";
+
+function readSessionFlag(key) {
+  try {
+    const value = sessionStorage.getItem(key);
+    if (value === "1") return true;
+    if (value === "0") return false;
+  } catch {
+    /* sessionStorage can be blocked */
+  }
+  return null;
+}
+
+function writeSessionFlag(key, value) {
+  try {
+    sessionStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 const ICON_PAUSE =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/></svg>';
@@ -99,7 +120,9 @@ function createPagePanel() {
         max-width: 100%;
         border: 0;
         background: Canvas;
+        opacity: 0;
       }
+      iframe[data-ready="true"] { opacity: 1; }
     </style>
     <div class="card" data-minimized="false" data-paused="true">
       <div class="chrome">
@@ -119,7 +142,15 @@ function createPagePanel() {
   const label = shadow.querySelector(".label");
   const frame = shadow.querySelector("iframe");
   logo.src = chrome.runtime.getURL("icons/icon.svg");
-  frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
+  let frameReady = false;
+  const ensureFrame = () => {
+    if (frameReady) return;
+    frame.addEventListener("load", () => {
+      frame.dataset.ready = "true";
+    });
+    frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
+    frameReady = true;
+  };
   minBtn.addEventListener("click", () => {
     const next = card.dataset.minimized !== "true";
     chrome.storage.local.set({ [MINIMIZED_KEY]: next });
@@ -145,9 +176,10 @@ function createPagePanel() {
     host,
     mount,
     render({ minimized, paused }) {
-      mount();
       card.dataset.minimized = minimized ? "true" : "false";
       card.dataset.paused = paused ? "true" : "false";
+      if (!minimized) ensureFrame();
+      mount();
       label.textContent = paused ? "Paused" : "Capturing";
       pauseBtn.setAttribute(
         "aria-label",
@@ -162,9 +194,16 @@ function createPagePanel() {
 
 function startPagePanel() {
   const panel = createPagePanel();
-  let minimized = false;
-  let paused = true;
-  const apply = () => panel.render({ minimized, paused });
+  const cachedMin = readSessionFlag(SS_MINIMIZED);
+  const cachedPaused = readSessionFlag(SS_PAUSED);
+  let minimized = cachedMin ?? false;
+  let paused = cachedPaused ?? true;
+  const apply = () => {
+    writeSessionFlag(SS_MINIMIZED, minimized);
+    writeSessionFlag(SS_PAUSED, paused);
+    panel.render({ minimized, paused });
+  };
+  if (cachedMin != null || cachedPaused != null) apply();
   chrome.storage.local.get([MINIMIZED_KEY, PAUSED_KEY], (data) => {
     minimized = Boolean(data[MINIMIZED_KEY]);
     paused = Boolean(data[PAUSED_KEY]);
@@ -178,7 +217,6 @@ function startPagePanel() {
     if (changes[PAUSED_KEY]) paused = Boolean(changes[PAUSED_KEY].newValue);
     if (changes[MINIMIZED_KEY] || changes[PAUSED_KEY]) apply();
   });
-  apply();
   return panel;
 }
 
