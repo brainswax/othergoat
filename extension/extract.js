@@ -659,6 +659,7 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
       );
     }
   }
+  batch.subjectRegistration = registration;
   if (opts.recordLinear) {
     batch.linear.push(
       ...extractLinearRows(
@@ -669,11 +670,15 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
         page.text ?? "",
       ),
     );
+    if (view === "linear") batch.linearComplete = true;
   }
 
   if (opts.recordPti) {
     const pti = ptiRow(page.text ?? "", registration, capturedAt, page.url ?? "");
     if (pti) batch.pti.push(pti);
+    if (/\bPTI\s*21\b/i.test(collapse(page.text ?? ""))) {
+      batch.ptiComplete = true;
+    }
   }
   return convertBatch(batch, subject.herdbook);
 }
@@ -707,6 +712,12 @@ function convertBatch(batch, subjectBook = "") {
     ...row,
     registration_number: toAdgaRegistration(row.registration_number, book),
   }));
+  if (batch.subjectRegistration) {
+    batch.subjectRegistration = toAdgaRegistration(
+      batch.subjectRegistration,
+      book,
+    );
+  }
   const canon = (reg) => {
     if (!reg) return "";
     const hit = batch.individuals.find(

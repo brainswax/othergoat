@@ -154,10 +154,31 @@ main {
   text-decoration: underline;
 }
 
+#list .marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
 #list .complete {
   flex-shrink: 0;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
   color: #2e8b57;
+}
+
+#list .complete.is-pending {
+  color: color-mix(in srgb, CanvasText 40%, transparent);
+}
+
+#list .mark-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -36,6 +36,14 @@ export function isIndividualComplete(row) {
   );
 }
 
+export function isLinearComplete(row) {
+  return Boolean(row?.linear_complete);
+}
+
+export function isPtiComplete(row) {
+  return Boolean(row?.pti_complete);
+}
+
 /** Complete animals first, then registered name, then registration. */
 export function compareIndividuals(a, b) {
   const complete =
@@ -130,7 +138,17 @@ export function emptyStore() {
 }
 
 export function emptyBatch() {
-  return { view: "", eventArgument: "", eventTarget: "", individuals: [], linear: [], pti: [] };
+  return {
+    view: "",
+    eventArgument: "",
+    eventTarget: "",
+    individuals: [],
+    linear: [],
+    pti: [],
+    subjectRegistration: "",
+    linearComplete: false,
+    ptiComplete: false,
+  };
 }
 
 /** Capture toggles. All on until the user opts out. */

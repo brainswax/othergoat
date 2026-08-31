@@ -117,6 +117,22 @@ describe("isIndividualComplete", () => {
   });
 });
 
+describe("scrape complete flags", () => {
+  it("does not treat a later stub merge as incomplete", () => {
+    const first = mergeBatch(emptyStore(), {
+      individuals: [{ registration_number: "PD2237546", registered_name: "ONE" }],
+      subjectRegistration: "PD2237546",
+      linearComplete: true,
+      ptiComplete: true,
+    });
+    const second = mergeBatch(first, {
+      individuals: [{ registration_number: "PD2237546", registered_name: "" }],
+    });
+    assert.equal(second.individuals.PD2237546.linear_complete, true);
+    assert.equal(second.individuals.PD2237546.pti_complete, true);
+  });
+});
+
 describe("registrationFromUrl", () => {
   it("reads GoatDetail RegNumber", () => {
     assert.equal(registrationFromUrl(SAMPLE_URL), "N001352104");
@@ -226,6 +242,8 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(batch.pti[0].pti12, "12");
     assert.equal(batch.pti[0].eta21, "8");
     assert.equal(batch.pti[0].eta12, "4");
+    assert.equal(batch.ptiComplete, true);
+    assert.equal(batch.linearComplete, false);
   });
 
   it("returns null when the URL is not a goat detail page", () => {
@@ -263,6 +281,7 @@ describe("extractFromSnapshot pedigree", () => {
       { recordPti: false },
     );
     assert.equal(batch.pti.length, 0);
+    assert.equal(batch.ptiComplete, false);
   });
 
   it("skips individual rows when recordIndividuals is off", () => {
@@ -344,6 +363,8 @@ describe("extractFromSnapshot linear", () => {
         },
       ],
     });
+    assert.equal(batch.linearComplete, true);
+    assert.equal(batch.ptiComplete, true);
     assert.equal(batch.linear.length, 2);
     assert.equal(batch.linear[0].appraisal_date, "2024");
     assert.equal(batch.linear[0].stat, "28");
@@ -370,6 +391,7 @@ describe("extractFromSnapshot linear", () => {
       { recordLinear: false },
     );
     assert.equal(batch.linear.length, 0);
+    assert.equal(batch.linearComplete, false);
   });
 
   it("records PTI and Linear History without an individual row", () => {
@@ -548,9 +570,52 @@ describe("merge", () => {
       appraisal_date: "2025",
       age: "03-02",
     });
+    store.individuals.PD2237546.linear_complete = true;
+    store.individuals.PD2237546.pti_complete = true;
     const next = removeRow(store, "linear", drop);
     assert.ok(next.individuals.PD2237546);
     assert.equal(Object.keys(next.linear).length, 1);
+    assert.equal(next.individuals.PD2237546.linear_complete, false);
+    assert.equal(next.individuals.PD2237546.pti_complete, true);
+  });
+
+  it("clears PTI complete without dropping the animal or LA rows", () => {
+    const store = mergeBatch(emptyStore(), {
+      individuals: [
+        {
+          registration_number: "PD2237546",
+          registered_name: "KEEP",
+        },
+      ],
+      linear: [
+        { registration_number: "PD2237546", appraisal_date: "2024", age: "02-01" },
+      ],
+      pti: [{ registration_number: "PD2237546", pti21: "40" }],
+      subjectRegistration: "PD2237546",
+      linearComplete: true,
+      ptiComplete: true,
+    });
+    assert.equal(store.individuals.PD2237546.linear_complete, true);
+    assert.equal(store.individuals.PD2237546.pti_complete, true);
+    const next = removeRow(store, "pti", "PD2237546");
+    assert.ok(next.individuals.PD2237546);
+    assert.equal(next.individuals.PD2237546.pti_complete, false);
+    assert.equal(next.individuals.PD2237546.linear_complete, true);
+    assert.equal(Object.keys(next.linear).length, 1);
+    assert.equal(Object.keys(next.pti).length, 0);
+  });
+
+  it("marks Linear History complete even when the table is empty", () => {
+    const batch = {
+      individuals: [{ registration_number: "PD2237546" }],
+      linear: [],
+      pti: [],
+      subjectRegistration: "PD2237546",
+      linearComplete: true,
+    };
+    const store = mergeBatch(emptyStore(), batch);
+    assert.equal(store.individuals.PD2237546.linear_complete, true);
+    assert.equal(Object.keys(store.linear).length, 0);
   });
 });
 

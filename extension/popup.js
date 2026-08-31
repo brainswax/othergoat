@@ -87,14 +87,69 @@ function appendItem(parts) {
   listEl.append(li);
 }
 
-function completeMark() {
+const CHECK_SVG =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
+
+function scrapeMark(label, done, doneTitle, needTitle) {
   const mark = document.createElement("span");
-  mark.className = "complete";
-  mark.title = "Has full identity from this animal’s Genetics page";
-  mark.innerHTML =
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
-  mark.append(el("span", "sr-only", "Complete"));
+  mark.className = done ? "complete" : "complete is-pending";
+  mark.title = done ? doneTitle : needTitle;
+  if (done) {
+    mark.innerHTML = CHECK_SVG;
+    mark.append(el("span", "sr-only", `${label} complete`));
+  } else {
+    mark.append(el("span", "mark-label", label));
+  }
   return mark;
+}
+
+function scrapeMarks(flags = {}) {
+  const wrap = el("span", "marks");
+  wrap.append(
+    scrapeMark(
+      "ID",
+      flags.identity,
+      "Has full identity from this animal’s Genetics page",
+      "Visit this animal’s Genetics page for identity",
+    ),
+    scrapeMark(
+      "LA",
+      flags.linear,
+      "Linear History captured",
+      "Open Linear History on this animal",
+    ),
+    scrapeMark(
+      "PTI",
+      flags.pti,
+      "PTI captured",
+      "Visit this animal’s Genetics page for PTI",
+    ),
+  );
+  return wrap;
+}
+
+function hasRows(list, registration) {
+  return (list ?? []).some(
+    (item) =>
+      identityKey(item.registration_number) === identityKey(registration || ""),
+  );
+}
+
+function flagsOf(registration, individuals, linear, pti) {
+  const row = (individuals ?? []).find(
+    (item) => identityKey(item.registration_number) === identityKey(registration || ""),
+  );
+  return {
+    identity: isIndividualComplete(row),
+    linear:
+      row?.linear_complete === false
+        ? false
+        : Boolean(row?.linear_complete) || hasRows(linear, registration),
+    pti:
+      row?.pti_complete === false
+        ? false
+        : Boolean(row?.pti_complete) || hasRows(pti, registration),
+  };
 }
 
 function openGoatPage(url) {
@@ -122,7 +177,7 @@ function nameLink(name, registration, sourceUrl) {
 function titleRow(name, capturedAt, opts = {}) {
   const top = el("div", "row");
   const left = el("div", "title");
-  if (opts.complete) left.append(completeMark());
+  if (opts.marks) left.append(scrapeMarks(opts.marks));
   left.append(
     opts.registration
       ? nameLink(name, opts.registration, opts.sourceUrl)
@@ -153,11 +208,11 @@ function metaRow(text, kind, key) {
   return row;
 }
 
-function renderAnimals(individuals) {
+function renderAnimals(individuals, linear, pti) {
   for (const row of individuals) {
     appendItem([
       titleRow(row.registered_name || row.registration_number, row.captured_at, {
-        complete: isIndividualComplete(row),
+        marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
       }),
@@ -176,11 +231,12 @@ function renderAnimals(individuals) {
   }
 }
 
-function renderLinear(linear, nameOf) {
+function renderLinear(linear, nameOf, individuals, pti) {
   for (const row of linear) {
     const title = nameOf(row.registration_number);
     appendItem([
       titleRow(title || row.registration_number, row.captured_at, {
+        marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
       }),
@@ -201,7 +257,7 @@ function renderLinear(linear, nameOf) {
   }
 }
 
-function renderPti(pti, nameOf) {
+function renderPti(pti, nameOf, individuals, linear) {
   for (const row of pti) {
     const title = nameOf(row.registration_number);
     const scores = [
@@ -214,6 +270,7 @@ function renderPti(pti, nameOf) {
       .join(" · ");
     appendItem([
       titleRow(title || row.registration_number, row.captured_at, {
+        marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
       }),
@@ -298,9 +355,9 @@ function render(store) {
 
   if (onSettings || tabRows.length === 0) return;
   const nameOf = nameLookup(individuals);
-  if (currentTab === "linear") renderLinear(linear, nameOf);
-  else if (currentTab === "pti") renderPti(pti, nameOf);
-  else renderAnimals(individuals);
+  if (currentTab === "linear") renderLinear(linear, nameOf, individuals, pti);
+  else if (currentTab === "pti") renderPti(pti, nameOf, individuals, linear);
+  else renderAnimals(individuals, linear, pti);
 }
 
 function send(message) {

@@ -3,6 +3,7 @@ import {
   LINEAR_COLUMNS,
   PTI_COLUMNS,
   compareIndividuals,
+  emptyIndividual,
   emptyStore,
 } from "./schema.js";
 import { identityKey } from "./registration.js";
@@ -108,7 +109,37 @@ export function mergeBatch(store, batch) {
     row.registration_number = canon(row.registration_number) || row.registration_number;
     ptiNext[ptiKey(row)] = row;
   }
+  const subject = canon(batch?.subjectRegistration) || batch?.subjectRegistration;
+  if (batch?.linearComplete) setComplete(individuals, subject, "linear_complete");
+  if (batch?.ptiComplete) setComplete(individuals, subject, "pti_complete");
   return { individuals, linear: linearNext, pti: ptiNext };
+}
+
+function setComplete(individuals, registration, field) {
+  const row = ensureIndividual(individuals, registration);
+  if (row) row[field] = true;
+}
+
+function ensureIndividual(individuals, registration) {
+  const want = String(registration ?? "").trim();
+  if (!want) return null;
+  const key =
+    Object.keys(individuals).find((item) => identityKey(item) === identityKey(want)) ??
+    want;
+  if (!individuals[key]) {
+    individuals[key] = { ...emptyIndividual(), registration_number: want };
+  }
+  return individuals[key];
+}
+
+function clearComplete(individuals, registration, field) {
+  const want = String(registration ?? "").trim();
+  if (!want) return;
+  const key = Object.keys(individuals).find(
+    (item) => identityKey(item) === identityKey(want),
+  );
+  if (!key) return;
+  individuals[key] = { ...individuals[key], [field]: false };
 }
 
 export function storeAsLists(store) {
@@ -141,13 +172,17 @@ export function removeRow(store, kind, key) {
   if (!want) return next;
 
   if (kind === "linear") {
+    const row = next.linear[want];
     delete next.linear[want];
+    clearComplete(next.individuals, row?.registration_number, "linear_complete");
     return next;
   }
   if (kind === "pti") {
     const hit =
       Object.keys(next.pti).find((item) => sameAnimal(item, want)) ?? want;
+    const row = next.pti[hit];
     delete next.pti[hit];
+    clearComplete(next.individuals, row?.registration_number ?? want, "pti_complete");
     return next;
   }
 
