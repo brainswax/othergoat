@@ -10,6 +10,8 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "./schema.js";
 
 const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
+const STORE_KEY = "store";
+const PAUSED_KEY = "paused";
 const EMPTY_COPY = {
   animals:
     "Visit goat detail pages on genetics.adga.org. Captured animals appear here. Opening Pedigree, Progeny, or Linear History on the same page adds more rows.",
@@ -175,6 +177,7 @@ function setTab(tab) {
   }
   panelEl.setAttribute("aria-labelledby", `tab-${tab}`);
   render(lastStore);
+  void refresh();
 }
 
 function paintSettings(settings) {
@@ -197,7 +200,15 @@ function readSettingsForm() {
 
 function saveSettings() {
   ancestryOpt.disabled = !individualsOpt.checked;
-  chrome.storage.local.set({ [SETTINGS_KEY]: readSettingsForm() });
+  chrome.storage.local.set({ [SETTINGS_KEY]: readSettingsForm() }, () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const id = tabs[0]?.id;
+      if (id == null) return;
+      chrome.tabs.sendMessage(id, { type: "RECAPTURE" }, () => {
+        void chrome.runtime.lastError;
+      });
+    });
+  });
 }
 
 function render(store) {
@@ -213,7 +224,7 @@ function render(store) {
   statusEl.textContent =
     (store.paused ? "Paused. " : "") +
     (onSettings
-      ? "These apply to pages you open next. The queue is unchanged."
+      ? "Changes apply to the Genetics page that’s open."
       : count === 0 && !anyRows
         ? "No animals captured yet."
         : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`);
@@ -333,6 +344,13 @@ linearOpt.addEventListener("change", saveSettings);
 
 chrome.storage.local.get(SETTINGS_KEY, (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes[STORE_KEY] || changes[PAUSED_KEY]) {
+    void refresh();
+  }
 });
 
 refresh().catch((err) => {

@@ -213,6 +213,13 @@ function startCapture(extractFromDocument, normalizeSettings) {
     }
   };
 
+  const recapture = (nextSettings) => {
+    if (nextSettings) settings = normalizeSettings(nextSettings);
+    lastKey = "";
+    attempts = 0;
+    if (!paused) run(true);
+  };
+
   chrome.storage.local.get([PAUSED_KEY, SETTINGS_KEY], (data) => {
     settings = normalizeSettings(data[SETTINGS_KEY]);
     setPaused(Boolean(data[PAUSED_KEY]));
@@ -221,13 +228,20 @@ function startCapture(extractFromDocument, normalizeSettings) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes[SETTINGS_KEY]) {
-      settings = normalizeSettings(changes[SETTINGS_KEY].newValue);
-      lastKey = "";
-      if (!paused) run(true);
+      recapture(changes[SETTINGS_KEY].newValue);
     }
     if (changes[PAUSED_KEY]) {
       setPaused(Boolean(changes[PAUSED_KEY].newValue));
     }
+  });
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "RECAPTURE") return;
+    chrome.storage.local.get(SETTINGS_KEY, (data) => {
+      recapture(data[SETTINGS_KEY]);
+      sendResponse({ ok: true });
+    });
+    return true;
   });
 
   observer = new MutationObserver(schedule);
