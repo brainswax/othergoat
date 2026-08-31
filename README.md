@@ -24,7 +24,7 @@ Goatsmith zip import is later (herdsmith P-18).
 4. Browse animal pages such as  
    `https://genetics.adga.org/GoatDetail.aspx?RegNumber=…`
 5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows). A pause/play control sits at the bottom-right of Genetics pages if you want to stop capturing without closing the tab.
-6. Click the extension icon → **Download zip**  
+6. Click the extension icon for the queue, **Settings** (what to capture), and **Download zip**  
    (`adga-genetics-export-YYYY-MM-DD-HHmm.zip`).
 
 Cloudflare’s “verify your browser” interstitial is common on first load. The content script retries until the animal heading is present. Switching submenu items is an ASP.NET postback on the same URL; the extension re-reads the DOM after the pane updates.

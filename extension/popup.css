@@ -45,12 +45,13 @@ h1 {
 
 .tabs [role="tab"] {
   flex: 1;
-  padding: 6px 8px 8px;
+  padding: 6px 4px 8px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
   color: color-mix(in srgb, CanvasText 70%, transparent);
   font: inherit;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -144,6 +145,36 @@ main {
   padding: 16px 12px;
   margin: 0;
   color: color-mix(in srgb, CanvasText 70%, transparent);
+}
+
+#settings {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#settings[hidden] {
+  display: none;
+}
+
+#settings label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+#settings input {
+  margin: 3px 0 0;
+}
+
+#settings .hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: color-mix(in srgb, CanvasText 65%, transparent);
 }
 
 footer button {

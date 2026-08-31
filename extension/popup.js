@@ -6,8 +6,10 @@ import {
 } from "./csv.js";
 import { linearKey, ptiKey } from "./merge.js";
 import { identityKey } from "./registration.js";
+import { DEFAULT_SETTINGS, normalizeSettings } from "./schema.js";
 
-const TABS = ["animals", "linear", "pti"];
+const TABS = ["animals", "linear", "pti", "settings"];
+const SETTINGS_KEY = "settings";
 const EMPTY_COPY = {
   animals:
     "Visit goat detail pages on genetics.adga.org. Captured animals appear here. Opening Pedigree, Progeny, or Linear History on the same page adds more rows.",
@@ -19,6 +21,10 @@ const EMPTY_COPY = {
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("list");
 const emptyEl = document.getElementById("empty");
+const settingsEl = document.getElementById("settings");
+const ancestryOpt = document.getElementById("opt-ancestry");
+const ptiOpt = document.getElementById("opt-pti");
+const linearOpt = document.getElementById("opt-linear");
 const panelEl = document.getElementById("panel");
 const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
@@ -170,38 +176,63 @@ function setTab(tab) {
   render(lastStore);
 }
 
+function paintSettings(settings) {
+  const opts = normalizeSettings(settings);
+  ancestryOpt.checked = opts.captureAncestry;
+  ptiOpt.checked = opts.recordPti;
+  linearOpt.checked = opts.recordLinear;
+}
+
+function readSettingsForm() {
+  return {
+    captureAncestry: ancestryOpt.checked,
+    recordPti: ptiOpt.checked,
+    recordLinear: linearOpt.checked,
+  };
+}
+
+function saveSettings() {
+  chrome.storage.local.set({ [SETTINGS_KEY]: readSettingsForm() });
+}
+
 function render(store) {
   lastStore = store;
   const individuals = store.individuals ?? [];
   const linear = store.linear ?? [];
   const pti = store.pti ?? [];
   const count = individuals.length;
+  const onSettings = currentTab === "settings";
   const tabRows =
     currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   const anyRows = count + linear.length + pti.length > 0;
   statusEl.textContent =
     (store.paused ? "Paused. " : "") +
-    (count === 0 && !anyRows
-      ? "No animals captured yet."
-      : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`);
+    (onSettings
+      ? "These apply to pages you open next. The queue is unchanged."
+      : count === 0 && !anyRows
+        ? "No animals captured yet."
+        : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`);
 
   const labels = {
     animals: count ? `Animals (${count})` : "Animals",
     linear: linear.length ? `LA (${linear.length})` : "LA",
     pti: pti.length ? `PTI (${pti.length})` : "PTI",
+    settings: "Settings",
   };
   for (const button of tabButtons) {
     button.textContent = labels[button.dataset.tab] ?? button.dataset.tab;
   }
 
+  settingsEl.hidden = !onSettings;
+  listEl.hidden = onSettings;
   listEl.replaceChildren();
-  emptyEl.hidden = tabRows.length > 0;
-  emptyEl.textContent = EMPTY_COPY[currentTab];
-  downloadCsvBtn.disabled = tabRows.length === 0;
+  emptyEl.hidden = onSettings || tabRows.length > 0;
+  emptyEl.textContent = EMPTY_COPY[currentTab] ?? "";
+  downloadCsvBtn.disabled = onSettings || tabRows.length === 0;
   downloadBtn.disabled = !anyRows;
   clearBtn.disabled = !anyRows;
 
-  if (tabRows.length === 0) return;
+  if (onSettings || tabRows.length === 0) return;
   const nameOf = nameLookup(individuals);
   if (currentTab === "linear") renderLinear(linear, nameOf);
   else if (currentTab === "pti") renderPti(pti, nameOf);
@@ -258,6 +289,7 @@ document.querySelector(".tabs").addEventListener("keydown", (event) => {
 });
 
 downloadCsvBtn.addEventListener("click", async () => {
+  if (currentTab === "settings") return;
   const store = await refresh();
   const kind = tabKind();
   const rows =
@@ -287,6 +319,14 @@ clearBtn.addEventListener("click", async () => {
   if (!window.confirm("Remove all captured animals from this computer?")) return;
   await send("CLEAR_STORE");
   await refresh();
+});
+
+ancestryOpt.addEventListener("change", saveSettings);
+ptiOpt.addEventListener("change", saveSettings);
+linearOpt.addEventListener("change", saveSettings);
+
+chrome.storage.local.get(SETTINGS_KEY, (data) => {
+  paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
 });
 
 refresh().catch((err) => {

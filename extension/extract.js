@@ -8,8 +8,11 @@ import {
   emptyIndividual,
   emptyLinear,
   emptyPti,
+  normalizeSettings,
 } from "./schema.js";
 import { identityKey, toAdgaRegistration } from "./registration.js";
+
+export { normalizeSettings } from "./schema.js";
 
 const REG_IN_TEXT = /[A-Z]\d{8,12}/i;
 const MENU_CELLS = new Set([
@@ -610,9 +613,10 @@ function subjectFromPage(page, registration, capturedAt) {
   return row;
 }
 
-export function extractFromSnapshot(page, capturedAt = "") {
+export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
   const registration = registrationFromUrl(page.url ?? "");
   if (!registration) return null;
+  const opts = normalizeSettings(settings);
   const view = detectView(page);
   const batch = emptyBatch();
   batch.view = view;
@@ -633,15 +637,17 @@ export function extractFromSnapshot(page, capturedAt = "") {
     subject.sire_registration = subjectFromTree.sire_registration;
     subject.dam_registration = subjectFromTree.dam_registration;
   }
-  batch.individuals.push(
-    ...tree.filter((row) => row.registration_number !== registration),
-  );
-  if (view === "pedigree") {
-    const have = new Set(batch.individuals.map((row) => row.registration_number));
-    for (const stub of stubsFromGoatLinks(page.links, capturedAt, page.url ?? "")) {
-      if (have.has(stub.registration_number)) continue;
-      have.add(stub.registration_number);
-      batch.individuals.push(stub);
+  if (opts.captureAncestry) {
+    batch.individuals.push(
+      ...tree.filter((row) => row.registration_number !== registration),
+    );
+    if (view === "pedigree") {
+      const have = new Set(batch.individuals.map((row) => row.registration_number));
+      for (const stub of stubsFromGoatLinks(page.links, capturedAt, page.url ?? "")) {
+        if (have.has(stub.registration_number)) continue;
+        have.add(stub.registration_number);
+        batch.individuals.push(stub);
+      }
     }
   }
 
@@ -650,7 +656,7 @@ export function extractFromSnapshot(page, capturedAt = "") {
       ...extractProgenyRows(page.tables, subject, capturedAt, page.url ?? ""),
     );
   }
-  if (view === "linear") {
+  if (view === "linear" && opts.recordLinear) {
     batch.linear.push(
       ...extractLinearRows(
         page.tables,
@@ -662,8 +668,10 @@ export function extractFromSnapshot(page, capturedAt = "") {
     );
   }
 
-  const pti = ptiRow(page.text ?? "", registration, capturedAt, page.url ?? "");
-  if (pti) batch.pti.push(pti);
+  if (opts.recordPti) {
+    const pti = ptiRow(page.text ?? "", registration, capturedAt, page.url ?? "");
+    if (pti) batch.pti.push(pti);
+  }
   return convertBatch(batch);
 }
 
@@ -743,9 +751,13 @@ export function snapshotFromDocument(doc, url) {
   };
 }
 
-export function extractFromDocument(doc, url, capturedAt) {
+export function extractFromDocument(doc, url, capturedAt, settings) {
   try {
-    return extractFromSnapshot(snapshotFromDocument(doc, url), capturedAt);
+    return extractFromSnapshot(
+      snapshotFromDocument(doc, url),
+      capturedAt,
+      settings,
+    );
   } catch {
     return null;
   }

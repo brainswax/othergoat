@@ -6,6 +6,7 @@
 
 const DEBOUNCE_MS = 800;
 const PAUSED_KEY = "paused";
+const SETTINGS_KEY = "settings";
 const HOST_ID = "ogr-capture-host";
 
 const ICON_PAUSE =
@@ -125,12 +126,13 @@ function mountOverlay(onToggle) {
   };
 }
 
-function startCapture(extractFromDocument) {
+function startCapture(extractFromDocument, normalizeSettings) {
   let lastKey = "";
   let lastAt = 0;
   let timer = 0;
   let attempts = 0;
   let paused = true;
+  let settings = normalizeSettings({});
   let observer = null;
 
   const overlay = mountOverlay(() => {
@@ -143,7 +145,7 @@ function startCapture(extractFromDocument) {
     overlay.mount();
     let batch = null;
     try {
-      batch = extractFromDocument(document, location.href, nowIso());
+      batch = extractFromDocument(document, location.href, nowIso(), settings);
     } catch {
       batch = null;
     }
@@ -193,13 +195,21 @@ function startCapture(extractFromDocument) {
     }
   };
 
-  chrome.storage.local.get(PAUSED_KEY, (data) => {
+  chrome.storage.local.get([PAUSED_KEY, SETTINGS_KEY], (data) => {
+    settings = normalizeSettings(data[SETTINGS_KEY]);
     setPaused(Boolean(data[PAUSED_KEY]));
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !changes[PAUSED_KEY]) return;
-    setPaused(Boolean(changes[PAUSED_KEY].newValue));
+    if (area !== "local") return;
+    if (changes[SETTINGS_KEY]) {
+      settings = normalizeSettings(changes[SETTINGS_KEY].newValue);
+      lastKey = "";
+      if (!paused) run(true);
+    }
+    if (changes[PAUSED_KEY]) {
+      setPaused(Boolean(changes[PAUSED_KEY].newValue));
+    }
   });
 
   observer = new MutationObserver(schedule);
@@ -210,15 +220,9 @@ function startCapture(extractFromDocument) {
   });
 }
 
-function loadExtract() {
-  return import(chrome.runtime.getURL("extract.js")).then(
-    (mod) => mod.extractFromDocument,
-  );
-}
-
 function boot(remaining) {
-  loadExtract()
-    .then(startCapture)
+  import(chrome.runtime.getURL("extract.js"))
+    .then((mod) => startCapture(mod.extractFromDocument, mod.normalizeSettings))
     .catch(() => {
       if (remaining <= 0) return;
       window.setTimeout(() => boot(remaining - 1), 400);

@@ -145,6 +145,7 @@ describe("extractFromSnapshot pedigree", () => {
         links: PEDIGREE_LINKS,
       },
       "2026-08-30T04:00:00.000Z",
+      { captureAncestry: true },
     );
     assert.equal(batch.view, "pedigree");
     const byReg = Object.fromEntries(
@@ -174,6 +175,36 @@ describe("extractFromSnapshot pedigree", () => {
       extractFromSnapshot({ url: "https://genetics.adga.org/Default.aspx" }),
       null,
     );
+  });
+
+  it("records sire and dam on the subject without ancestor rows", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT,
+        links: PEDIGREE_LINKS,
+      },
+      "t",
+      { captureAncestry: false },
+    );
+    assert.equal(batch.individuals.length, 1);
+    assert.equal(batch.individuals[0].sire_registration, "N1201234");
+    assert.equal(batch.individuals[0].dam_registration, "N1198765");
+  });
+
+  it("skips PTI when recordPti is off", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT,
+        links: PEDIGREE_LINKS,
+      },
+      "t",
+      { recordPti: false },
+    );
+    assert.equal(batch.pti.length, 0);
   });
 });
 
@@ -251,6 +282,20 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.pti.length, 1);
     assert.equal(batch.pti[0].pti21, "40");
     assert.equal(batch.pti[0].eta12, "29");
+  });
+
+  it("skips Linear History when recordLinear is off", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        eventArgument: "LinearHistory",
+        text: linearText,
+        tables: [],
+      },
+      "t",
+      { recordLinear: false },
+    );
+    assert.equal(batch.linear.length, 0);
   });
 
   it("does not treat a Type Eval page as linear rows", () => {
