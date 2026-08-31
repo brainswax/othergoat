@@ -22,10 +22,10 @@ function badgeText(count) {
 }
 
 async function updateBadge(store) {
-  const animals = Object.keys(store?.individuals ?? {}).length;
-  const other =
-    Object.keys(store?.linear ?? {}).length + Object.keys(store?.pti ?? {}).length;
-  const count = animals > 0 ? animals : other;
+  const count =
+    Object.keys(store?.individuals ?? {}).length +
+    Object.keys(store?.linear ?? {}).length +
+    Object.keys(store?.pti ?? {}).length;
   await chrome.action.setBadgeBackgroundColor({ color: "#2e5a3c" });
   await chrome.action.setBadgeTextColor({ color: "#ffffff" });
   await chrome.action.setBadgeText({ text: badgeText(count) });
