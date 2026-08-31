@@ -12,6 +12,7 @@ import {
   normalizeSettings,
   scrapeStatus,
 } from "./schema.js";
+import { rowMatchesQuery } from "./search.js";
 
 const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
@@ -25,6 +26,7 @@ const EMPTY_COPY = {
   linear:
     "Open Linear History on a goat you already captured. Appraisal rows appear here.",
   pti: "PTI and ETA from the left pane are captured when you visit a goat detail page.",
+  search: "No captured rows match that search.",
 };
 
 const statusEl = document.getElementById("status");
@@ -39,6 +41,9 @@ const panelEl = document.getElementById("panel");
 const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
 const clearBtn = document.getElementById("clear");
+const searchBar = document.getElementById("search-bar");
+const searchInput = document.getElementById("search");
+const searchClearBtn = document.getElementById("search-clear");
 const tabButtons = [...document.querySelectorAll(".tabs [role='tab']")];
 
 document.getElementById("version").textContent =
@@ -264,6 +269,45 @@ function metaRow(text, kind, key) {
   return row;
 }
 
+function searchQuery() {
+  return searchInput.value;
+}
+
+function paintSearchClear() {
+  searchClearBtn.hidden = searchQuery().trim() === "";
+}
+
+function animalSearchParts(row) {
+  return [
+    row.registered_name,
+    row.registration_number,
+    row.date_of_birth,
+    row.herdbook,
+  ];
+}
+
+function linearSearchParts(row, nameOf) {
+  return [
+    nameOf(row.registration_number),
+    row.registration_number,
+    row.appraisal_date,
+    row.age,
+    row.final_score,
+    row.majors,
+  ];
+}
+
+function ptiSearchParts(row, nameOf) {
+  return [
+    nameOf(row.registration_number),
+    row.registration_number,
+    row.pti21,
+    row.pti12,
+    row.eta21,
+    row.eta12,
+  ];
+}
+
 function renderAnimals(individuals, linear, pti) {
   for (const row of individuals) {
     appendItem([
@@ -389,6 +433,23 @@ function render(store) {
   const tabRows =
     currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   const anyRows = count + linear.length + pti.length > 0;
+  const nameOf = nameLookup(individuals);
+  const query = searchQuery();
+  const shownIndividuals = individuals.filter((row) =>
+    rowMatchesQuery(animalSearchParts(row), query),
+  );
+  const shownLinear = linear.filter((row) =>
+    rowMatchesQuery(linearSearchParts(row, nameOf), query),
+  );
+  const shownPti = pti.filter((row) =>
+    rowMatchesQuery(ptiSearchParts(row, nameOf), query),
+  );
+  const shown =
+    currentTab === "linear"
+      ? shownLinear
+      : currentTab === "pti"
+        ? shownPti
+        : shownIndividuals;
 
   const labels = {
     animals: count ? `Animals (${count})` : "Animals",
@@ -400,20 +461,22 @@ function render(store) {
     button.textContent = labels[button.dataset.tab] ?? button.dataset.tab;
   }
 
+  searchBar.hidden = onSettings;
+  paintSearchClear();
   settingsEl.hidden = !onSettings;
   listEl.hidden = onSettings;
   listEl.replaceChildren();
-  emptyEl.hidden = onSettings || tabRows.length > 0;
-  emptyEl.textContent = EMPTY_COPY[currentTab] ?? "";
+  emptyEl.hidden = onSettings || shown.length > 0;
+  emptyEl.textContent =
+    tabRows.length === 0 ? (EMPTY_COPY[currentTab] ?? "") : EMPTY_COPY.search;
   downloadCsvBtn.disabled = onSettings || tabRows.length === 0;
   downloadBtn.disabled = !anyRows;
   clearBtn.disabled = !anyRows;
 
-  if (onSettings || tabRows.length === 0) return;
-  const nameOf = nameLookup(individuals);
-  if (currentTab === "linear") renderLinear(linear, nameOf, individuals, pti);
-  else if (currentTab === "pti") renderPti(pti, nameOf, individuals, linear);
-  else renderAnimals(individuals, linear, pti);
+  if (onSettings || shown.length === 0) return;
+  if (currentTab === "linear") renderLinear(shownLinear, nameOf, individuals, pti);
+  else if (currentTab === "pti") renderPti(shownPti, nameOf, individuals, linear);
+  else renderAnimals(shownIndividuals, linear, pti);
 }
 
 function send(message) {
@@ -502,6 +565,17 @@ individualsOpt.addEventListener("change", saveSettings);
 ancestryOpt.addEventListener("change", saveSettings);
 ptiOpt.addEventListener("change", saveSettings);
 linearOpt.addEventListener("change", saveSettings);
+
+searchInput.addEventListener("input", () => {
+  paintSearchClear();
+  render(lastStore);
+});
+searchClearBtn.addEventListener("click", () => {
+  searchInput.value = "";
+  searchInput.focus();
+  paintSearchClear();
+  render(lastStore);
+});
 
 chrome.storage.local.get(SETTINGS_KEY, (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
