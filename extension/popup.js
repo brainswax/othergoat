@@ -18,6 +18,7 @@ const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
+const SEARCH_KEY = "searchQuery";
 const docked = new URLSearchParams(location.search).has("docked");
 if (docked) document.documentElement.dataset.docked = "true";
 const EMPTY_COPY = {
@@ -271,6 +272,10 @@ function metaRow(text, kind, key) {
 
 function searchQuery() {
   return searchInput.value;
+}
+
+function persistSearch() {
+  chrome.storage.local.set({ [SEARCH_KEY]: searchInput.value });
 }
 
 function paintSearchClear() {
@@ -567,18 +572,27 @@ ptiOpt.addEventListener("change", saveSettings);
 linearOpt.addEventListener("change", saveSettings);
 
 searchInput.addEventListener("input", () => {
+  persistSearch();
   paintSearchClear();
   render(lastStore);
 });
 searchClearBtn.addEventListener("click", () => {
   searchInput.value = "";
+  persistSearch();
   searchInput.focus();
   paintSearchClear();
   render(lastStore);
 });
 
-chrome.storage.local.get(SETTINGS_KEY, (data) => {
+chrome.storage.local.get([SETTINGS_KEY, SEARCH_KEY], (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
+  const saved = data[SEARCH_KEY];
+  if (typeof saved === "string") searchInput.value = saved;
+  paintSearchClear();
+  refresh().catch((err) => {
+    statusEl.hidden = false;
+    statusEl.textContent = `Could not load queue: ${err.message}`;
+  });
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -586,9 +600,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[STORE_KEY] || changes[PAUSED_KEY]) {
     void refresh();
   }
-});
-
-refresh().catch((err) => {
-  statusEl.hidden = false;
-  statusEl.textContent = `Could not load queue: ${err.message}`;
+  if (changes[SEARCH_KEY] && typeof changes[SEARCH_KEY].newValue === "string") {
+    if (searchInput.value !== changes[SEARCH_KEY].newValue) {
+      searchInput.value = changes[SEARCH_KEY].newValue;
+      paintSearchClear();
+      render(lastStore);
+    }
+  }
 });
