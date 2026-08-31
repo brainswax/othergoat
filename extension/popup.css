@@ -32,7 +32,11 @@ h1 {
 }
 
 .masthead {
-  margin: 0 0 2px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
 }
 
 html[data-docked] {
@@ -50,14 +54,10 @@ html[data-docked] .masthead {
 }
 
 #version {
-  margin: 2px 0 6px;
+  margin: 0;
   color: color-mix(in srgb, CanvasText 50%, transparent);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-}
-
-html[data-docked] #version {
-  margin: 0 0 8px;
 }
 
 #status {
@@ -102,6 +102,80 @@ html[data-docked] #version {
 .tabs [role="tab"].tab-icon svg {
   display: block;
   overflow: visible;
+}
+
+.search-bar {
+  padding: 0 0 8px;
+}
+
+.search-bar[hidden] {
+  display: none;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 4px 4px 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 6px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.search-icon {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, CanvasText 45%, transparent);
+}
+
+#search {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+#search:focus {
+  outline: none;
+}
+
+.search-field:focus-within {
+  border-color: color-mix(in srgb, CanvasText 40%, transparent);
+}
+
+#search::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+#search-clear {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  cursor: pointer;
+}
+
+#search-clear:hover,
+#search-clear:focus-visible {
+  color: CanvasText;
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+#search-clear[hidden] {
+  display: none;
 }
 
 main {
