@@ -16,6 +16,10 @@ const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
+const PINNED_KEY = "pinned";
+const PINNED_MIN_KEY = "pinnedMinimized";
+const docked = new URLSearchParams(location.search).has("docked");
+if (docked) document.documentElement.dataset.docked = "true";
 const EMPTY_COPY = {
   animals:
     "Visit goat detail pages on genetics.adga.org. Captured animals appear here. Opening Pedigree, Progeny, or Linear History on the same page adds more rows.",
@@ -37,6 +41,7 @@ const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
 const clearBtn = document.getElementById("clear");
 const tabButtons = [...document.querySelectorAll(".tabs [role='tab']")];
+const pinBtn = document.getElementById("pin");
 
 document.getElementById("version").textContent =
   `v${chrome.runtime.getManifest().version}`;
@@ -100,7 +105,7 @@ function openGoatPage(url) {
     const id = tabs[0]?.id;
     if (id != null) chrome.tabs.update(id, { url });
     else chrome.tabs.create({ url });
-    window.close();
+    if (!docked) window.close();
   });
 }
 
@@ -399,10 +404,35 @@ chrome.storage.local.get(SETTINGS_KEY, (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
 });
 
+function paintPin(pinned) {
+  pinBtn.setAttribute("aria-pressed", pinned ? "true" : "false");
+  pinBtn.setAttribute(
+    "aria-label",
+    pinned ? "Unpin from Genetics" : "Pin over Genetics",
+  );
+  pinBtn.title = pinned
+    ? "Stop keeping this panel open on Genetics pages"
+    : "Keep this panel open on Genetics pages";
+}
+
+pinBtn.addEventListener("click", () => {
+  const next = pinBtn.getAttribute("aria-pressed") !== "true";
+  chrome.storage.local.set({ [PINNED_KEY]: next, [PINNED_MIN_KEY]: false }, () => {
+    if (next && !docked) window.close();
+  });
+});
+
+chrome.storage.local.get(PINNED_KEY, (data) => {
+  paintPin(Boolean(data[PINNED_KEY]));
+});
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes[STORE_KEY] || changes[PAUSED_KEY]) {
     void refresh();
+  }
+  if (changes[PINNED_KEY]) {
+    paintPin(Boolean(changes[PINNED_KEY].newValue));
   }
 });
 

@@ -31,12 +31,49 @@ h1 {
   font-size: 14px;
 }
 
-.brand {
+.brand-actions {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 4px;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  cursor: pointer;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  color: CanvasText;
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+.icon-btn[aria-pressed="true"] {
+  color: CanvasText;
+}
+
+html[data-docked] {
+  height: 100%;
+}
+
+html[data-docked] body {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+
+html[data-docked] .brand {
+  display: none;
 }
 
 #version {
