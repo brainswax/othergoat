@@ -1,164 +1,148 @@
-# Goatsmith – ADGA Genetics CSV Export Extension & Import
+# ADGA Genetics capture → CSV zip
 
-**Proposal and Design Document**
+**Status (2026-08-30):** Milestone 1 (passive-only) is implemented in `extension/`. Load unpacked from that folder (root `README.md`). Goatsmith import of this zip is **not** in this repo (herdsmith P-18).
+
+The extension has no knowledge of Goatsmith and does not contact any server.
 
 ---
 
 ## 1. Overview
 
-A browser extension automatically captures structured animal data (registration, name, PTI/indexes, Linear Appraisals, immediate pedigree) from every ADGA Genetics animal page the user visits. Captured records accumulate in a local queue. The user later opens the extension popup, selects which records to keep, and downloads a clean CSV of only the selected records.
-
-Goatsmith accepts the same CSV format through a standard import path. The extension is general-purpose and has no knowledge of or communication with Goatsmith.
-
----
+A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by registration number. The user downloads a zip of three CSVs: individuals, linear appraisals, and PTI/ETA.
 
 ## 2. Goals
 
-- Automatically capture data from animal pages the user actually visits.
-- Give the user full control at export time by selecting which records to include in the CSV.
-- Keep all data strictly local until the user downloads a file.
-- Produce a neutral, well-documented CSV usable in spreadsheets or Goatsmith.
-- Remain clearly user-driven: the human navigates the pages and the human selects and exports.
+- Capture data from pages and views the user actually opens.
+- Tolerate partial rows (pedigree stubs, progeny tables).
+- Deduplicate by registration; empty fields never overwrite filled ones.
+- Keep all data on this computer until the user downloads a file.
+- Produce a normalized zip usable in spreadsheets or a later Goatsmith import.
 
-## 3. Non-Goals
+## 3. Non-goals (milestone 1)
 
-- Automatic navigation or pedigree walking.
-- Background scraping of pages the user never visited.
-- Any network communication from the extension.
-- Real-time sync with any application.
-
----
-
-## 4. Capture Model
-
-### Content script
-
-- Runs only on `https://genetics.adga.org/*` (and any current equivalent domains).
-- On page load or navigation to a recognized animal record page, extracts the structured data.
-- Sends the record to the background script.
-- Deduplicates by registration number (latest version of an animal overwrites earlier ones).
-- Optional light visual feedback (small non-intrusive badge or toast) that can be disabled in settings.
-- Debounces rapid successive loads of the same page.
-
-### Background / service worker
-
-- Maintains a local queue using chrome.storage.local or IndexedDB.
-- Stores the full structured record plus capture timestamp and source URL.
-- Soft limit (approximately 100–200 animals) with a warning when approaching the limit.
-- Supports a “pause auto-capture” setting.
-
-### Popup UI
-
-- Lists all currently queued animals (name + registration number + capture time).
-- Checkboxes for multi-select.
-- Controls:
-  - Select All / Deselect All
-  - Download Selected (CSV)
-  - Remove Selected
-  - Clear Entire Queue
-- Displays count of selected versus total.
-- Optional simple search/filter by name or registration.
+- The extension must not POST, click the submenu, or walk registrations.
+- No scrape of pages the user never opened.
+- No network of its own; no sync with any application.
 
 ---
 
-## 5. CSV Format
+## 4. Capture model
 
-One row per selected animal.
+Content script on `https://genetics.adga.org/GoatDetail.aspx*`.
 
-Recommended columns:
+- After load (and after ASP.NET postbacks that swap the content pane), parse the visible DOM.
+- Detect the view from `__EVENTARGUMENT` / `__EVENTTARGET` when present, else the selected submenu, else table shape. Default is Pedigree.
+- Send a **batch** (individuals + LA rows + PTI rows) to the service worker.
+- Debounce identical batches; a view change is a new batch.
+- Do not submit the ASP.NET form. Hidden `__EVENTARGUMENT` is recorded for later milestones only.
+
+Background store: `chrome.storage.local` `{ individuals, linear, pti }`.
+
+Merge:
+
+- Individual key: ADGA registration ID (not Genetics `RegNumber`). `D002237546` + PB → `PD2237546`. Later non-empty field values replace earlier ones; blanks do not clobber.
+- LA key: `registration_number` + `appraisal_date` (or `age` if no date).
+- PTI key: `registration_number`.
+
+Popup lists unique individuals and downloads the zip. Clear wipes the local store.
+
+---
+
+## 5. Export
+
+One download: `adga-genetics-export-YYYY-MM-DD-HHmm.zip`
+
+A CSV is one table. Multiple tables are separate files in the zip.
+
+### individuals.csv
+
+One row per registration.
 
 ```
-registration_number,registered_name,herd_name,breed,sex,date_of_birth,
-pti,eta,linear_appraisal_date,linear_final_score,
-sire_registration,sire_name,dam_registration,dam_name,
-source_url,captured_at,notes
+registration_number,registered_name,breed,breed_percent,herdbook,polled,sex,date_of_birth,linear_final_score,sire_registration,dam_registration,source_url,captured_at,notes
 ```
 
-Filename pattern: `adga-genetics-export-YYYY-MM-DD-HHmm.csv`
+Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #.
+
+**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest.
+
+**Progeny:** each table row is a stub; `sire_registration` or `dam_registration` is set to the current animal (buck → sire, doe → dam).
+
+### linear_appraisals.csv
+
+One row per Linear History event.
+
+```
+registration_number,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,final_score,majors,source_url,captured_at,notes
+```
+
+Trait keys match Goatsmith. Unmapped Genetics columns go in `notes`.
+
+### pti.csv
+
+One row per registration. The left pane always has four slots (empty if not published).
+
+```
+registration_number,pti21,pti12,eta21,eta12,source_url,captured_at
+```
 
 ---
 
-## 6. Goatsmith Import
+## 6. Goatsmith import (later)
 
-- Standard CSV import path labeled for ADGA Genetics export files.
-- Accepts the column set above (extra columns ignored; missing columns tolerated).
-- Shows a preview table before commit.
-- On import:
-  - Creates or matches animals by registration number.
-  - Stores provenance (source = “ADGA Genetics CSV export”, capture date, original URL).
-  - Maps PTI and linear appraisal data into existing performance records.
-  - Links sire/dam when those animals already exist; otherwise stores registration and name for later resolution.
-- User can choose to import only selected rows.
+Upload the zip, preview, match animals by registration, store provenance, map LA and PTI, resolve sire/dam by registration. Canonical backlog: herdsmith **P-18**.
 
 ---
 
-## 7. User Flows
+## 7. User flow (milestone 1)
 
-1. User browses ADGA Genetics normally.
-2. Extension quietly captures each animal page visited.
-3. User opens the extension popup.
-4. Reviews the list and selects the desired animals (or Select All).
-5. Clicks “Download Selected”.
-6. Imports the resulting CSV into a spreadsheet or Goatsmith.
-
-Control points include pause auto-capture, remove unwanted records, and clear the queue at any time.
+1. Browse ADGA Genetics normally (Pedigree, Progeny, Linear History, evals).
+2. Extension merges whatever is on the page.
+3. Open the popup → **Download zip**.
+4. Open the three CSVs in a spreadsheet, or import later.
 
 ---
 
-## 8. Technical Notes
+## 8. Technical notes
 
-- Deduplication keys on registration number and keeps the most recently captured version.
-- Prefer IndexedDB for larger queues; chrome.storage.local is acceptable for modest sizes.
-- Extraction must be fast and non-blocking.
-- Extraction logic tolerates missing fields and minor page structure changes; failures must not break the page.
-- Data exists only because the user navigated to the page. Export requires deliberate selection and download. No automatic bulk collection beyond pages the user visited.
-
----
-
-## 9. Implementation Phases
-
-### Milestone 1 – Auto-capture foundation
-
-Content script detects animal pages and extracts core fields. Background stores records with deduplication. Popup shows the queue and allows download of all current records.
-
-Acceptance: Browse several animals → open popup → download a correct multi-row CSV.
-
-### Milestone 2 – Selection UI
-
-Checkboxes, Select All / Deselect All, Download Selected, Remove Selected, Clear Queue. Soft queue limit and warning.
-
-Acceptance: User can selectively export a subset of captured animals.
-
-### Milestone 3 – Robustness and settings
-
-Improved extraction resilience. Pause auto-capture toggle. Optional light capture feedback. Firefox support.
-
-Acceptance: Stable across common page layouts; user can pause and resume.
-
-### Milestone 4 – Goatsmith CSV import
-
-Upload + preview + mapping of the standard format. Provenance recording.
-
-Acceptance: CSV produced by the extension imports cleanly into Goatsmith.
-
-### Milestone 5 (later)
-
-Additional linear trait detail. Search/filter in the popup. Optional deeper pedigree fields captured only from pages the user visited.
+- Extraction must not throw into the host page.
+- Cloudflare’s “verify your browser” interstitial: retry until the heading/reg appears.
+- Progeny paging: only the page the user is looking at; the next page is another capture, then merge.
+- Ancestry is a directed graph via `sire_registration` / `dam_registration` on the individual row (at most one of each).
 
 ---
 
-## 10. Open Questions
+## 9. Milestones
 
-1. Preferred visibility of capture feedback (silent, subtle badge, or toast).
-2. Soft queue limit preference.
-3. Whether to keep older versions of an animal or always overwrite with the latest capture.
-4. Exact selectors and text patterns available on current ADGA Genetics animal pages (to be determined by live inspection during implementation).
+### 1 – Passive-only (this pass)
+
+Collect as the user browses. Parse the DOM after they open a view. Do not POST.
+
+Acceptance: Browse several animals and views → popup lists unique registrations → zip contains `individuals.csv`, `linear_appraisals.csv`, and `pti.csv` with merged partial rows.
+
+### 2 – Active individual (not this pass)
+
+User points at one registration. The extension fires the site’s own postbacks on that GoatDetail and merges Pedigree identity, Linear History, PTI/ETA, and Progeny stubs for **that animal only**. No walk to relatives’ pages.
+
+### 3 – Active family (not this pass)
+
+After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tree). For each of those registrations, collect the same individual payload as (2). End goal: pick a buck, pull the family.
 
 ---
 
-## 11. Success Criteria
+## 10. Live page notes
 
-- A user can capture animals while browsing ADGA Genetics and obtain a usable CSV with minimal friction.
-- The same CSV imports into Goatsmith without manual re-entry of registration numbers, PTI, or linear scores.
-- The extension never contacts any server and never collects data from pages the user did not visit.
-- The design remains clearly user-driven and general-purpose.
+- Animal URL: `GoatDetail.aspx?RegNumber={REG}`.
+- Heading: `NAME - REG (PB Doe|Buck…)`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03`.
+- Breed: `Breed Percent: 100% N` → `breed_percent=100`, `breed=N`.
+- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links.
+- Views swap via ASP.NET postback on the same URL (`__EVENTARGUMENT`). Milestone 1 only reads the resulting DOM.
+- Linear History on Genetics is `LAYear` + `Age` + traits in this order: Stature, Strength, Dairyness, RA, RW, RLS, FUA, RUH, RUA, Medial, UD, TP, TD, TL, Body Depth, Rear Udder Side View. Type Eval / PTA tables are not LA rows. Layout tables (Pedigree, Registry, DOB chrome) are not progeny.
+
+---
+
+## 11. Success criteria
+
+- A user can click through ADGA Genetics and obtain a usable zip with minimal friction.
+- Partial pedigree/progeny rows do not duplicate an animal or wipe fields filled on another view.
+- Milestone 1 never POSTs and never collects data from pages the user did not visit.

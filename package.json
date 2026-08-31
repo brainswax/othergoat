@@ -1,0 +1,10 @@
+{
+  "name": "othergoat",
+  "private": true,
+  "type": "module",
+  "description": "User-driven ADGA Genetics capture → CSV export",
+  "license": "GPL-3.0-only",
+  "scripts": {
+    "test": "node --test"
+  }
+}

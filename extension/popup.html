@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ADGA Genetics Capture</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>ADGA Genetics Capture</h1>
+      <p id="status">Loading…</p>
+    </header>
+    <main>
+      <ul id="list"></ul>
+      <p id="empty" hidden>
+        Visit goat detail pages on genetics.adga.org. Captured animals appear
+        here. Opening Pedigree, Progeny, or Linear History on the same page
+        adds more rows.
+      </p>
+    </main>
+    <footer>
+      <button type="button" id="download" disabled>Download zip</button>
+      <button type="button" id="clear" disabled>Clear queue</button>
+    </footer>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

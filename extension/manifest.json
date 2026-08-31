@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "ADGA Genetics Capture",
+  "description": "Capture ADGA Genetics pages you visit and download a zip of CSVs. Data stays on this computer.",
+  "version": "0.2.2",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "ADGA Genetics Capture",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://genetics.adga.org/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["extract.js", "schema.js", "registration.js"],
+      "matches": ["https://genetics.adga.org/*"]
+    }
+  ]
+}
