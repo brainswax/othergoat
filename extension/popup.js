@@ -404,6 +404,11 @@ chrome.storage.local.get(SETTINGS_KEY, (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
 });
 
+const ICON_PIN =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5z"/></svg>';
+const ICON_UNPIN =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V14M5.2 2.5h5.6l.4 5.2 1.8 1.8v1H3v-1l1.8-1.8L5.2 2.5zM3.2 3.2l9.6 9.6"/></svg>';
+
 function paintPin(pinned) {
   pinBtn.setAttribute("aria-pressed", pinned ? "true" : "false");
   pinBtn.setAttribute(
@@ -413,12 +418,22 @@ function paintPin(pinned) {
   pinBtn.title = pinned
     ? "Stop keeping this panel open on Genetics pages"
     : "Keep this panel open on Genetics pages";
+  pinBtn.innerHTML = pinned ? ICON_UNPIN : ICON_PIN;
 }
 
 pinBtn.addEventListener("click", () => {
   const next = pinBtn.getAttribute("aria-pressed") !== "true";
   chrome.storage.local.set({ [PINNED_KEY]: next, [PINNED_MIN_KEY]: false }, () => {
-    if (next && !docked) window.close();
+    if (!next || docked) return;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      try {
+        if (new URL(tabs[0]?.url ?? "").hostname === "genetics.adga.org") {
+          window.close();
+        }
+      } catch {
+        /* stay open */
+      }
+    });
   });
 });
 

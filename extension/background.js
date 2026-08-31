@@ -3,6 +3,27 @@ import { mergeBatch, removeRow, storeAsLists } from "./merge.js";
 
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
+const PINNED_KEY = "pinned";
+const POPUP_PATH = "popup.html";
+
+function isGeneticsUrl(url) {
+  try {
+    return new URL(url).hostname === "genetics.adga.org";
+  } catch {
+    return false;
+  }
+}
+
+async function syncActionPopup() {
+  const [{ pinned } = {}, tabs] = await Promise.all([
+    chrome.storage.local.get(PINNED_KEY),
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }),
+  ]);
+  const onGenetics = isGeneticsUrl(tabs[0]?.url ?? "");
+  await chrome.action.setPopup({
+    popup: pinned && onGenetics ? "" : POPUP_PATH,
+  });
+}
 
 async function loadStore() {
   const data = await chrome.storage.local.get(STORE_KEY);
@@ -47,11 +68,30 @@ async function syncBadge() {
 
 chrome.runtime.onInstalled.addListener(() => {
   void syncBadge();
+  void syncActionPopup();
 });
 chrome.runtime.onStartup.addListener(() => {
   void syncBadge();
+  void syncActionPopup();
 });
 void syncBadge();
+void syncActionPopup();
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[PINNED_KEY]) void syncActionPopup();
+});
+chrome.tabs.onActivated.addListener(() => {
+  void syncActionPopup();
+});
+chrome.tabs.onUpdated.addListener((_id, change) => {
+  if (change.url != null || change.status === "complete") void syncActionPopup();
+});
+chrome.windows.onFocusChanged.addListener(() => {
+  void syncActionPopup();
+});
+chrome.action.onClicked.addListener(() => {
+  /* Popup is cleared while pinned on Genetics; click is a no-op. */
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const run = async () => {
