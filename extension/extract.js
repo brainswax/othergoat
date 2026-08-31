@@ -236,6 +236,26 @@ function looksLikeStructuralTable(table) {
   );
 }
 
+function linkLooksLikeLinearHistory(link) {
+  const text = collapse(link?.text ?? "").toLowerCase();
+  const title = collapse(link?.title ?? "").toLowerCase();
+  return text === "linear history" || title === "linear history";
+}
+
+function linkHasPostBack(link) {
+  const blob = `${link?.href ?? ""} ${link?.onclick ?? ""}`;
+  return /__doPostBack/i.test(blob) || /linearhistory/i.test(blob);
+}
+
+/** Menu shows Linear History but it is not a postback (nothing to open). */
+export function linearHistoryUnavailable(page) {
+  const listed = /\blinear history\b/i.test(page?.text ?? "");
+  if (!listed) return false;
+  return !(page?.links ?? []).some(
+    (link) => linkLooksLikeLinearHistory(link) && linkHasPostBack(link),
+  );
+}
+
 export function detectView(page) {
   const hinted = collapse(
     [page.eventArgument, page.eventTarget, page.selectedMenu].filter(Boolean).join(" "),
@@ -659,6 +679,7 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
       );
     }
   }
+  batch.subjectRegistration = registration;
   if (opts.recordLinear) {
     batch.linear.push(
       ...extractLinearRows(
@@ -669,11 +690,15 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
         page.text ?? "",
       ),
     );
+    if (view === "linear" || linearHistoryUnavailable(page)) {
+      batch.linearComplete = true;
+    }
   }
 
   if (opts.recordPti) {
     const pti = ptiRow(page.text ?? "", registration, capturedAt, page.url ?? "");
     if (pti) batch.pti.push(pti);
+    batch.ptiComplete = true;
   }
   return convertBatch(batch, subject.herdbook);
 }
@@ -707,6 +732,12 @@ function convertBatch(batch, subjectBook = "") {
     ...row,
     registration_number: toAdgaRegistration(row.registration_number, book),
   }));
+  if (batch.subjectRegistration) {
+    batch.subjectRegistration = toAdgaRegistration(
+      batch.subjectRegistration,
+      book,
+    );
+  }
   const canon = (reg) => {
     if (!reg) return "";
     const hit = batch.individuals.find(
@@ -736,6 +767,7 @@ export function snapshotFromDocument(doc, url) {
     href: anchor.href,
     text: collapse(anchor.textContent),
     title: collapse(anchor.getAttribute("title") ?? anchor.title ?? ""),
+    onclick: collapse(anchor.getAttribute("onclick") ?? ""),
   }));
   const selected =
     doc.querySelector("[aria-current='page'], .selected, .Selected, .active") ??

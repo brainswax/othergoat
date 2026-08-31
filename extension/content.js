@@ -9,6 +9,27 @@ const PAUSED_KEY = "paused";
 const SETTINGS_KEY = "settings";
 const PANEL_ID = "ogr-page-host";
 const MINIMIZED_KEY = "pinnedMinimized";
+const SS_MINIMIZED = "__ogr_minimized";
+const SS_PAUSED = "__ogr_paused";
+
+function readSessionFlag(key) {
+  try {
+    const value = sessionStorage.getItem(key);
+    if (value === "1") return true;
+    if (value === "0") return false;
+  } catch {
+    /* sessionStorage can be blocked */
+  }
+  return null;
+}
+
+function writeSessionFlag(key, value) {
+  try {
+    sessionStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 const ICON_PAUSE =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="0.5" fill="currentColor"/></svg>';
@@ -99,7 +120,9 @@ function createPagePanel() {
         max-width: 100%;
         border: 0;
         background: Canvas;
+        opacity: 0;
       }
+      iframe[data-ready="true"] { opacity: 1; }
     </style>
     <div class="card" data-minimized="false" data-paused="true">
       <div class="chrome">
@@ -119,7 +142,15 @@ function createPagePanel() {
   const label = shadow.querySelector(".label");
   const frame = shadow.querySelector("iframe");
   logo.src = chrome.runtime.getURL("icons/icon.svg");
-  frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
+  let frameReady = false;
+  const ensureFrame = () => {
+    if (frameReady) return;
+    frame.addEventListener("load", () => {
+      frame.dataset.ready = "true";
+    });
+    frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
+    frameReady = true;
+  };
   minBtn.addEventListener("click", () => {
     const next = card.dataset.minimized !== "true";
     chrome.storage.local.set({ [MINIMIZED_KEY]: next });
@@ -145,9 +176,10 @@ function createPagePanel() {
     host,
     mount,
     render({ minimized, paused }) {
-      mount();
       card.dataset.minimized = minimized ? "true" : "false";
       card.dataset.paused = paused ? "true" : "false";
+      if (!minimized) ensureFrame();
+      mount();
       label.textContent = paused ? "Paused" : "Capturing";
       pauseBtn.setAttribute(
         "aria-label",
@@ -162,9 +194,16 @@ function createPagePanel() {
 
 function startPagePanel() {
   const panel = createPagePanel();
-  let minimized = false;
-  let paused = true;
-  const apply = () => panel.render({ minimized, paused });
+  const cachedMin = readSessionFlag(SS_MINIMIZED);
+  const cachedPaused = readSessionFlag(SS_PAUSED);
+  let minimized = cachedMin ?? false;
+  let paused = cachedPaused ?? true;
+  const apply = () => {
+    writeSessionFlag(SS_MINIMIZED, minimized);
+    writeSessionFlag(SS_PAUSED, paused);
+    panel.render({ minimized, paused });
+  };
+  if (cachedMin != null || cachedPaused != null) apply();
   chrome.storage.local.get([MINIMIZED_KEY, PAUSED_KEY], (data) => {
     minimized = Boolean(data[MINIMIZED_KEY]);
     paused = Boolean(data[PAUSED_KEY]);
@@ -178,7 +217,6 @@ function startPagePanel() {
     if (changes[PAUSED_KEY]) paused = Boolean(changes[PAUSED_KEY].newValue);
     if (changes[MINIMIZED_KEY] || changes[PAUSED_KEY]) apply();
   });
-  apply();
   return panel;
 }
 
@@ -341,6 +379,160 @@ function startCapture(extractFromDocument, normalizeSettings, pagePanel) {
 }
 
 const pagePanel = startPagePanel();
+
+const VIEW_SS = "__ogr_view";
+const LINEAR_HASH = "#ogr-linear";
+
+function menuText(node) {
+  return String(node?.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function decodePostBack(source) {
+  return String(source ?? "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+function parseDoPostBack(source) {
+  const match = decodePostBack(source).match(
+    /__doPostBack\s*\(\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/,
+  );
+  return match ? { target: match[1], argument: match[2] } : null;
+}
+
+function collectPostBacks(doc) {
+  const items = [];
+  for (const el of doc.querySelectorAll("a[href], [onclick]")) {
+    const parsed = parseDoPostBack(
+      `${el.getAttribute("href") ?? ""} ${el.getAttribute("onclick") ?? ""}`,
+    );
+    if (parsed) items.push({ ...parsed, text: menuText(el) });
+  }
+  const html = decodePostBack(doc.documentElement?.innerHTML ?? "");
+  for (const match of html.matchAll(
+    /__doPostBack\s*\(\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/g,
+  )) {
+    items.push({ target: match[1], argument: match[2], text: "" });
+  }
+  return items;
+}
+
+function findLinearPostBack(doc) {
+  const items = collectPostBacks(doc);
+  return (
+    items.find((item) => /linearhistory/i.test(item.argument)) ||
+    items.find((item) => /linearhistory/i.test(item.target)) ||
+    items.find((item) => item.text === "linear history") ||
+    items.find((item) => item.text.includes("linear history") && item.text.length < 48)
+  );
+}
+
+function submitPostBack(doc, target, argument) {
+  const form =
+    doc.querySelector("#aspnetForm") ||
+    doc.querySelector("form[action]") ||
+    doc.querySelector("form");
+  const eventTarget = doc.querySelector("input[name='__EVENTTARGET']");
+  const eventArgument = doc.querySelector("input[name='__EVENTARGUMENT']");
+  if (!form || !eventTarget || !eventArgument) return false;
+  eventTarget.value = target;
+  eventArgument.value = argument;
+  form.submit();
+  return true;
+}
+
+function pageLooksLinear(doc) {
+  const text = doc.body?.innerText ?? "";
+  return /Appraisal History For:/i.test(text) && /Linear Traits/i.test(text);
+}
+
+function rememberLinearView() {
+  try {
+    sessionStorage.setItem(VIEW_SS, "linear");
+  } catch {
+    /* ignore */
+  }
+}
+
+function forgetLinearView() {
+  try {
+    sessionStorage.removeItem(VIEW_SS);
+  } catch {
+    /* ignore */
+  }
+}
+
+function openLinearView(remaining) {
+  if (location.hash === LINEAR_HASH) {
+    rememberLinearView();
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+  let want = "";
+  try {
+    want = sessionStorage.getItem(VIEW_SS) ?? "";
+  } catch {
+    /* ignore */
+  }
+  if (want !== "linear") return;
+  if (pageLooksLinear(document)) {
+    forgetLinearView();
+    return;
+  }
+  const post = findLinearPostBack(document);
+  if (post && submitPostBack(document, post.target, post.argument)) return;
+  if (linearMenuUnavailable(document)) {
+    forgetLinearView();
+    captureCurrentPage();
+    return;
+  }
+  if (remaining > 0) {
+    window.setTimeout(() => openLinearView(remaining - 1), 300);
+    return;
+  }
+  forgetLinearView();
+}
+
+function linearMenuUnavailable(doc) {
+  const labeled = [...doc.querySelectorAll("a, span, td, li, font, b, label")].some(
+    (el) => menuText(el) === "linear history",
+  );
+  return labeled && !findLinearPostBack(doc);
+}
+
+function captureCurrentPage() {
+  import(chrome.runtime.getURL("extract.js"))
+    .then((mod) => {
+      chrome.storage.local.get(SETTINGS_KEY, (data) => {
+        const batch = mod.extractFromDocument(
+          document,
+          location.href,
+          new Date().toISOString(),
+          data[SETTINGS_KEY],
+        );
+        if (batch) {
+          chrome.runtime.sendMessage({ type: "CAPTURE_BATCH", batch });
+        }
+      });
+    })
+    .catch(() => {});
+}
+
+function startViewOpener() {
+  window.addEventListener("hashchange", () => openLinearView(12));
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "OPEN_VIEW") return;
+    if (message.view === "linear") {
+      rememberLinearView();
+      openLinearView(12);
+    }
+    sendResponse({ ok: true });
+    return true;
+  });
+  openLinearView(12);
+}
+
+startViewOpener();
 
 function boot(remaining) {
   import(chrome.runtime.getURL("extract.js"))

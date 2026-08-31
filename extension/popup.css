@@ -154,15 +154,57 @@ main {
   text-decoration: underline;
 }
 
+#list .marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
 #list .complete {
   flex-shrink: 0;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  min-height: 16px;
+  padding: 0;
+  border-radius: 3px;
+  color: #2e8b57;
+  text-decoration: none;
+}
+
+#list .complete.is-found {
   color: #2e8b57;
 }
 
+#list a.complete:hover,
+#list a.complete:focus-visible {
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+#list .complete.is-empty {
+  color: #8b8b8b;
+}
+
+#list .complete.is-missing {
+  color: color-mix(in srgb, CanvasText 40%, transparent);
+}
+
+#list .mark-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
 @media (prefers-color-scheme: dark) {
-  #list .complete {
+  #list .complete.is-found {
     color: #6dca8a;
+  }
+
+  #list .complete.is-empty {
+    color: #9a9a9a;
   }
 }
 

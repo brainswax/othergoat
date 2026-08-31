@@ -10,6 +10,7 @@ import {
   DEFAULT_SETTINGS,
   isIndividualComplete,
   normalizeSettings,
+  scrapeStatus,
 } from "./schema.js";
 
 const TABS = ["animals", "linear", "pti", "settings"];
@@ -87,21 +88,129 @@ function appendItem(parts) {
   listEl.append(li);
 }
 
-function completeMark() {
-  const mark = document.createElement("span");
-  mark.className = "complete";
-  mark.title = "Has full identity from this animal’s Genetics page";
-  mark.innerHTML =
-    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
-  mark.append(el("span", "sr-only", "Complete"));
+const CHECK_SVG =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
+
+function scrapeMark(label, status, titles, url) {
+  const mark = url ? el("a", "") : el("span", "");
+  mark.className = `complete is-${status}`;
+  mark.title = titles[status] ?? titles.missing;
+  if (url) {
+    mark.href = url;
+    mark.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openGoatPage(url, url.includes("#ogr-linear") ? "linear" : "");
+    });
+  }
+  if (status === "found" || status === "empty") {
+    mark.innerHTML = CHECK_SVG;
+    mark.append(
+      el(
+        "span",
+        "sr-only",
+        status === "empty" ? `${label} visited, no data` : `${label} complete`,
+      ),
+    );
+  } else {
+    mark.append(el("span", "mark-label", label));
+  }
   return mark;
 }
 
-function openGoatPage(url) {
+function scrapeMarks(flags = {}, registration = "", sourceUrl = "") {
+  const pedigree = goatDetailUrl(registration, sourceUrl);
+  const linear = goatDetailUrl(registration, sourceUrl, "linear");
+  const wrap = el("span", "marks");
+  wrap.append(
+    scrapeMark(
+      "ID",
+      flags.identity,
+      {
+        found: "Has full identity from this animal’s Genetics page",
+        missing: "Visit this animal’s Genetics page for identity",
+      },
+      pedigree,
+    ),
+    scrapeMark(
+      "LA",
+      flags.linear,
+      {
+        found: "Linear History captured",
+        empty: "Linear History visited; no appraisals",
+        missing: "Open Linear History on this animal",
+      },
+      linear,
+    ),
+    scrapeMark(
+      "PTI",
+      flags.pti,
+      {
+        found: "PTI captured",
+        empty: "Visited; no PTI scores",
+        missing: "Visit this animal’s Genetics page for PTI",
+      },
+      pedigree,
+    ),
+  );
+  return wrap;
+}
+
+function hasRows(list, registration) {
+  return (list ?? []).some(
+    (item) =>
+      identityKey(item.registration_number) === identityKey(registration || ""),
+  );
+}
+
+function flagsOf(registration, individuals, linear, pti) {
+  const row = (individuals ?? []).find(
+    (item) => identityKey(item.registration_number) === identityKey(registration || ""),
+  );
+  return {
+    identity: isIndividualComplete(row) ? "found" : "missing",
+    linear: scrapeStatus(row?.linear_complete, hasRows(linear, registration)),
+    pti: scrapeStatus(
+      row?.pti_complete === false
+        ? false
+        : Boolean(row?.pti_complete) || isIndividualComplete(row),
+      hasRows(pti, registration),
+    ),
+  };
+}
+
+function sameGoatDetail(tabUrl, destUrl) {
+  try {
+    const tab = new URL(tabUrl);
+    const dest = new URL(destUrl);
+    const a = identityKey(tab.searchParams.get("RegNumber") ?? "");
+    const b = identityKey(dest.searchParams.get("RegNumber") ?? "");
+    return (
+      tab.hostname === "genetics.adga.org" &&
+      /GoatDetail\.aspx/i.test(tab.pathname) &&
+      a !== "" &&
+      a === b
+    );
+  } catch {
+    return false;
+  }
+}
+
+function openGoatPage(url, view = "") {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const id = tabs[0]?.id;
-    if (id != null) chrome.tabs.update(id, { url });
-    else chrome.tabs.create({ url });
+    const tab = tabs[0];
+    if (tab?.id == null) {
+      chrome.tabs.create({ url });
+      if (!docked) window.close();
+      return;
+    }
+    if (view === "linear" && sameGoatDetail(tab.url ?? "", url)) {
+      chrome.tabs.sendMessage(tab.id, { type: "OPEN_VIEW", view: "linear" }, () => {
+        if (chrome.runtime.lastError) chrome.tabs.update(tab.id, { url });
+      });
+    } else {
+      chrome.tabs.update(tab.id, { url });
+    }
     if (!docked) window.close();
   });
 }
@@ -122,7 +231,9 @@ function nameLink(name, registration, sourceUrl) {
 function titleRow(name, capturedAt, opts = {}) {
   const top = el("div", "row");
   const left = el("div", "title");
-  if (opts.complete) left.append(completeMark());
+  if (opts.marks) {
+    left.append(scrapeMarks(opts.marks, opts.registration, opts.sourceUrl));
+  }
   left.append(
     opts.registration
       ? nameLink(name, opts.registration, opts.sourceUrl)
@@ -153,11 +264,11 @@ function metaRow(text, kind, key) {
   return row;
 }
 
-function renderAnimals(individuals) {
+function renderAnimals(individuals, linear, pti) {
   for (const row of individuals) {
     appendItem([
       titleRow(row.registered_name || row.registration_number, row.captured_at, {
-        complete: isIndividualComplete(row),
+        marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
       }),
@@ -176,11 +287,12 @@ function renderAnimals(individuals) {
   }
 }
 
-function renderLinear(linear, nameOf) {
+function renderLinear(linear, nameOf, individuals, pti) {
   for (const row of linear) {
     const title = nameOf(row.registration_number);
     appendItem([
       titleRow(title || row.registration_number, row.captured_at, {
+        marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
       }),
@@ -201,7 +313,7 @@ function renderLinear(linear, nameOf) {
   }
 }
 
-function renderPti(pti, nameOf) {
+function renderPti(pti, nameOf, individuals, linear) {
   for (const row of pti) {
     const title = nameOf(row.registration_number);
     const scores = [
@@ -214,6 +326,7 @@ function renderPti(pti, nameOf) {
       .join(" · ");
     appendItem([
       titleRow(title || row.registration_number, row.captured_at, {
+        marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
       }),
@@ -298,9 +411,9 @@ function render(store) {
 
   if (onSettings || tabRows.length === 0) return;
   const nameOf = nameLookup(individuals);
-  if (currentTab === "linear") renderLinear(linear, nameOf);
-  else if (currentTab === "pti") renderPti(pti, nameOf);
-  else renderAnimals(individuals);
+  if (currentTab === "linear") renderLinear(linear, nameOf, individuals, pti);
+  else if (currentTab === "pti") renderPti(pti, nameOf, individuals, linear);
+  else renderAnimals(individuals, linear, pti);
 }
 
 function send(message) {
