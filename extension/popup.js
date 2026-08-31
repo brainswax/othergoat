@@ -16,6 +16,8 @@ const TABS = ["animals", "linear", "pti", "settings"];
 const SETTINGS_KEY = "settings";
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
+const docked = new URLSearchParams(location.search).has("docked");
+if (docked) document.documentElement.dataset.docked = "true";
 const EMPTY_COPY = {
   animals:
     "Visit goat detail pages on genetics.adga.org. Captured animals appear here. Opening Pedigree, Progeny, or Linear History on the same page adds more rows.",
@@ -100,7 +102,7 @@ function openGoatPage(url) {
     const id = tabs[0]?.id;
     if (id != null) chrome.tabs.update(id, { url });
     else chrome.tabs.create({ url });
-    window.close();
+    if (!docked) window.close();
   });
 }
 
@@ -274,13 +276,6 @@ function render(store) {
   const tabRows =
     currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   const anyRows = count + linear.length + pti.length > 0;
-  statusEl.textContent =
-    (store.paused ? "Paused. " : "") +
-    (onSettings
-      ? "Changes apply to the Genetics page that’s open."
-      : count === 0 && !anyRows
-        ? "No animals captured yet."
-        : `${count} animal${count === 1 ? "" : "s"} · ${linear.length} LA · ${pti.length} PTI`);
 
   const labels = {
     animals: count ? `Animals (${count})` : "Animals",
@@ -407,5 +402,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 refresh().catch((err) => {
+  statusEl.hidden = false;
   statusEl.textContent = `Could not load queue: ${err.message}`;
 });

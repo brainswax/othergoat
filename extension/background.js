@@ -3,6 +3,27 @@ import { mergeBatch, removeRow, storeAsLists } from "./merge.js";
 
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
+const MINIMIZED_KEY = "pinnedMinimized";
+const POPUP_PATH = "popup.html";
+
+function isGeneticsUrl(url) {
+  try {
+    return new URL(url).hostname === "genetics.adga.org";
+  } catch {
+    return false;
+  }
+}
+
+async function syncActionPopup() {
+  const tabs = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+  const onGenetics = isGeneticsUrl(tabs[0]?.url ?? "");
+  await chrome.action.setPopup({
+    popup: onGenetics ? "" : POPUP_PATH,
+  });
+}
 
 async function loadStore() {
   const data = await chrome.storage.local.get(STORE_KEY);
@@ -47,11 +68,31 @@ async function syncBadge() {
 
 chrome.runtime.onInstalled.addListener(() => {
   void syncBadge();
+  void syncActionPopup();
 });
 chrome.runtime.onStartup.addListener(() => {
   void syncBadge();
+  void syncActionPopup();
 });
 void syncBadge();
+void syncActionPopup();
+
+chrome.tabs.onActivated.addListener(() => {
+  void syncActionPopup();
+});
+chrome.tabs.onUpdated.addListener((_id, change) => {
+  if (change.url != null || change.status === "complete") void syncActionPopup();
+});
+chrome.windows.onFocusChanged.addListener(() => {
+  void syncActionPopup();
+});
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!isGeneticsUrl(tab?.url ?? "")) return;
+  const data = await chrome.storage.local.get(MINIMIZED_KEY);
+  await chrome.storage.local.set({
+    [MINIMIZED_KEY]: !data[MINIMIZED_KEY],
+  });
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const run = async () => {
