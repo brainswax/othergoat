@@ -56,6 +56,10 @@ html[data-docked] .masthead {
   font-variant-numeric: tabular-nums;
 }
 
+html[data-docked] #version {
+  margin: 0 0 8px;
+}
+
 #status {
   margin: 0 0 8px;
   color: color-mix(in srgb, CanvasText 70%, transparent);

@@ -63,7 +63,16 @@ function createPagePanel() {
         cursor: default;
       }
       .card[data-minimized="true"] .chrome { border-bottom: 0; }
+      .logo {
+        display: block;
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        flex: 0 0 auto;
+      }
       .title { flex: 1; font-weight: 600; white-space: nowrap; }
+      .card[data-minimized="true"] .title { display: none; }
+      .card[data-minimized="true"] .logo { cursor: pointer; }
       .label { white-space: nowrap; }
       .card[data-paused="true"] .label { opacity: 0.75; }
       .chrome button {
@@ -94,6 +103,7 @@ function createPagePanel() {
     </style>
     <div class="card" data-minimized="false" data-paused="true">
       <div class="chrome">
+        <img class="logo" alt="Other Goats Records" width="20" height="20" />
         <span class="title">Other Goats Records</span>
         <button type="button" class="min" aria-label="Minimize">${ICON_MIN}</button>
         <span class="label">Paused</span>
@@ -103,20 +113,24 @@ function createPagePanel() {
     </div>
   `;
   const card = shadow.querySelector(".card");
+  const logo = shadow.querySelector(".logo");
   const minBtn = shadow.querySelector(".min");
   const pauseBtn = shadow.querySelector(".pause");
   const label = shadow.querySelector(".label");
   const frame = shadow.querySelector("iframe");
+  logo.src = chrome.runtime.getURL("icons/icon.svg");
   frame.src = `${chrome.runtime.getURL("popup.html")}?docked=1`;
   minBtn.addEventListener("click", () => {
     const next = card.dataset.minimized !== "true";
     chrome.storage.local.set({ [MINIMIZED_KEY]: next });
   });
-  shadow.querySelector(".title").addEventListener("click", () => {
+  const expand = () => {
     if (card.dataset.minimized === "true") {
       chrome.storage.local.set({ [MINIMIZED_KEY]: false });
     }
-  });
+  };
+  logo.addEventListener("click", expand);
+  shadow.querySelector(".title").addEventListener("click", expand);
   pauseBtn.addEventListener("click", () => {
     chrome.storage.local.set({
       [PAUSED_KEY]: card.dataset.paused !== "true",

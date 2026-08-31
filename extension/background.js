@@ -3,6 +3,7 @@ import { mergeBatch, removeRow, storeAsLists } from "./merge.js";
 
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
+const MINIMIZED_KEY = "pinnedMinimized";
 const POPUP_PATH = "popup.html";
 
 function isGeneticsUrl(url) {
@@ -85,8 +86,12 @@ chrome.tabs.onUpdated.addListener((_id, change) => {
 chrome.windows.onFocusChanged.addListener(() => {
   void syncActionPopup();
 });
-chrome.action.onClicked.addListener(() => {
-  /* On Genetics the page panel is the UI; badge click is a no-op. */
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!isGeneticsUrl(tab?.url ?? "")) return;
+  const data = await chrome.storage.local.get(MINIMIZED_KEY);
+  if (data[MINIMIZED_KEY]) {
+    await chrome.storage.local.set({ [MINIMIZED_KEY]: false });
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

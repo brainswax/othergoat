@@ -276,13 +276,6 @@ function render(store) {
   const tabRows =
     currentTab === "linear" ? linear : currentTab === "pti" ? pti : individuals;
   const anyRows = count + linear.length + pti.length > 0;
-  if (store.paused) {
-    statusEl.hidden = false;
-    statusEl.textContent = "Paused.";
-  } else {
-    statusEl.textContent = "";
-    statusEl.hidden = true;
-  }
 
   const labels = {
     animals: count ? `Animals (${count})` : "Animals",
