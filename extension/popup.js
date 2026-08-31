@@ -217,9 +217,9 @@ function render(store) {
     animals: count ? `Animals (${count})` : "Animals",
     linear: linear.length ? `LA (${linear.length})` : "LA",
     pti: pti.length ? `PTI (${pti.length})` : "PTI",
-    settings: "Settings",
   };
   for (const button of tabButtons) {
+    if (button.dataset.tab === "settings") continue;
     button.textContent = labels[button.dataset.tab] ?? button.dataset.tab;
   }
 

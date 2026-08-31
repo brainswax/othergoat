@@ -61,6 +61,20 @@ h1 {
   font-weight: 600;
 }
 
+.tabs [role="tab"].tab-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  overflow: visible;
+}
+
+.tabs [role="tab"].tab-icon svg {
+  display: block;
+  overflow: visible;
+}
+
 main {
   overflow: auto;
   flex: 1;
