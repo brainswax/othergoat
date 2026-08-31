@@ -36,6 +36,20 @@ export function isIndividualComplete(row) {
   );
 }
 
+/** Complete animals first, then registered name, then registration. */
+export function compareIndividuals(a, b) {
+  const complete =
+    Number(isIndividualComplete(b)) - Number(isIndividualComplete(a));
+  if (complete !== 0) return complete;
+  const name = String(a.registered_name ?? "").localeCompare(
+    String(b.registered_name ?? ""),
+  );
+  if (name !== 0) return name;
+  return String(a.registration_number ?? "").localeCompare(
+    String(b.registration_number ?? ""),
+  );
+}
+
 /** Same left-to-right order as ADGA Genetics Linear History. */
 export const LINEAR_COLUMNS = [
   "registration_number",

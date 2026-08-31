@@ -2,6 +2,7 @@ import {
   INDIVIDUAL_COLUMNS,
   LINEAR_COLUMNS,
   PTI_COLUMNS,
+  compareIndividuals,
   emptyStore,
 } from "./schema.js";
 import { identityKey } from "./registration.js";
@@ -110,20 +111,10 @@ export function mergeBatch(store, batch) {
   return { individuals, linear: linearNext, pti: ptiNext };
 }
 
-function sortByNameThenReg(a, b) {
-  const name = String(a.registered_name ?? "").localeCompare(
-    String(b.registered_name ?? ""),
-  );
-  if (name !== 0) return name;
-  return String(a.registration_number ?? "").localeCompare(
-    String(b.registration_number ?? ""),
-  );
-}
-
 export function storeAsLists(store) {
   const src = store ?? emptyStore();
   return {
-    individuals: Object.values(src.individuals ?? {}).sort(sortByNameThenReg),
+    individuals: Object.values(src.individuals ?? {}).sort(compareIndividuals),
     linear: Object.values(src.linear ?? {}).sort((a, b) =>
       linearKey(a).localeCompare(linearKey(b)),
     ),

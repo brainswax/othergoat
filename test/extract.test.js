@@ -9,7 +9,7 @@ import {
   registrationFromUrl,
 } from "../extension/extract.js";
 import { emptyStore, LINEAR_COLUMNS, INDIVIDUAL_COLUMNS, isIndividualComplete } from "../extension/schema.js";
-import { mergeBatch, linearKey, removeRow } from "../extension/merge.js";
+import { mergeBatch, linearKey, removeRow, storeAsLists } from "../extension/merge.js";
 import {
   csvExportFilename,
   exportFilename,
@@ -449,6 +449,29 @@ describe("extractFromSnapshot progeny rejects layout tables", () => {
 });
 
 describe("merge", () => {
+  it("lists complete individuals before stubs, then by name", () => {
+    const identity = {
+      sex: "DOE",
+      herdbook: "PB",
+      date_of_birth: "1/1/2020",
+      breed: "N",
+      breed_percent: "100",
+    };
+    const lists = storeAsLists({
+      individuals: {
+        stub: { registration_number: "N3", registered_name: "AAA STUB" },
+        late: { registration_number: "N2", registered_name: "ZEBRA", ...identity },
+        early: { registration_number: "N1", registered_name: "BETA", ...identity },
+      },
+      linear: {},
+      pti: {},
+    });
+    assert.deepEqual(
+      lists.individuals.map((row) => row.registered_name),
+      ["BETA", "ZEBRA", "AAA STUB"],
+    );
+  });
+
   it("fills empty fields and does not clobber with blanks", () => {
     const first = mergeBatch(emptyStore(), {
       individuals: [
