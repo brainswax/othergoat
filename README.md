@@ -47,7 +47,13 @@ Opening Pedigree creates a stub row for every animal in the visible tree (name, 
 npm test
 ```
 
-Parser, merge, and CSV helpers are plain ES modules. No build step.
+Parser, merge, and CSV helpers are plain ES modules. No compile step.
+
+```bash
+npm run pack
+```
+
+Writes `dist/other-goats-records-{version}.zip`. Testers unzip and **Load unpacked** on the folder that contains `manifest.json`.
 
 ## What this is not
 
