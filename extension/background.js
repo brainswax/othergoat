@@ -89,9 +89,9 @@ chrome.windows.onFocusChanged.addListener(() => {
 chrome.action.onClicked.addListener(async (tab) => {
   if (!isGeneticsUrl(tab?.url ?? "")) return;
   const data = await chrome.storage.local.get(MINIMIZED_KEY);
-  if (data[MINIMIZED_KEY]) {
-    await chrome.storage.local.set({ [MINIMIZED_KEY]: false });
-  }
+  await chrome.storage.local.set({
+    [MINIMIZED_KEY]: !data[MINIMIZED_KEY],
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
