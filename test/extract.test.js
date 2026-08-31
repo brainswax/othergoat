@@ -311,6 +311,58 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(batch.ptiComplete, false);
   });
 
+  it("marks Linear History looked-at when the menu item is not a link", () => {
+    const batch = extractFromSnapshot({
+      url: SAMPLE_URL,
+      title: "ADGA Genetics",
+      text: `
+        SOME GOAT - N001352104 (PB Doe)
+        Pedigree Inbreeding Line Breeding Progeny Linear History Type Eval
+        DOB: 3/20/2020
+        Breed Percent: 100% N
+      `,
+      links: PEDIGREE_LINKS,
+    });
+    assert.equal(batch.view, "pedigree");
+    assert.equal(batch.linear.length, 0);
+    assert.equal(batch.linearComplete, true);
+  });
+
+  it("does not mark Linear History complete when the menu still posts back", () => {
+    const batch = extractFromSnapshot({
+      url: SAMPLE_URL,
+      title: "ADGA Genetics",
+      text: `
+        SOME GOAT - N001352104 (PB Doe)
+        Pedigree Inbreeding Progeny Linear History
+        DOB: 3/20/2020
+        Breed Percent: 100% N
+      `,
+      links: [
+        ...PEDIGREE_LINKS,
+        {
+          href: "javascript:__doPostBack('ctl00$Menu','LinearHistory')",
+          text: "Linear History",
+        },
+      ],
+    });
+    assert.equal(batch.linearComplete, false);
+  });
+
+  it("marks PTI looked-at when the identity pane has no scores", () => {
+    const batch = extractFromSnapshot({
+      url: SAMPLE_URL,
+      title: "ADGA Genetics",
+      text: `
+        SOME GOAT - N001352104 (PB Doe)
+        DOB: 3/20/2020
+        Breed Percent: 100% N
+      `,
+    });
+    assert.equal(batch.pti.length, 0);
+    assert.equal(batch.ptiComplete, true);
+  });
+
   it("skips individual rows when recordIndividuals is off", () => {
     const batch = extractFromSnapshot(
       {

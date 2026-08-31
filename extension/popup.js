@@ -100,7 +100,7 @@ function scrapeMark(label, status, titles, url) {
     mark.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openGoatPage(url);
+      openGoatPage(url, url.includes("#ogr-linear") ? "linear" : "");
     });
   }
   if (status === "found" || status === "empty") {
@@ -170,15 +170,47 @@ function flagsOf(registration, individuals, linear, pti) {
   return {
     identity: isIndividualComplete(row) ? "found" : "missing",
     linear: scrapeStatus(row?.linear_complete, hasRows(linear, registration)),
-    pti: scrapeStatus(row?.pti_complete, hasRows(pti, registration)),
+    pti: scrapeStatus(
+      row?.pti_complete === false
+        ? false
+        : Boolean(row?.pti_complete) || isIndividualComplete(row),
+      hasRows(pti, registration),
+    ),
   };
 }
 
-function openGoatPage(url) {
+function sameGoatDetail(tabUrl, destUrl) {
+  try {
+    const tab = new URL(tabUrl);
+    const dest = new URL(destUrl);
+    const a = identityKey(tab.searchParams.get("RegNumber") ?? "");
+    const b = identityKey(dest.searchParams.get("RegNumber") ?? "");
+    return (
+      tab.hostname === "genetics.adga.org" &&
+      /GoatDetail\.aspx/i.test(tab.pathname) &&
+      a !== "" &&
+      a === b
+    );
+  } catch {
+    return false;
+  }
+}
+
+function openGoatPage(url, view = "") {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const id = tabs[0]?.id;
-    if (id != null) chrome.tabs.update(id, { url });
-    else chrome.tabs.create({ url });
+    const tab = tabs[0];
+    if (tab?.id == null) {
+      chrome.tabs.create({ url });
+      if (!docked) window.close();
+      return;
+    }
+    if (view === "linear" && sameGoatDetail(tab.url ?? "", url)) {
+      chrome.tabs.sendMessage(tab.id, { type: "OPEN_VIEW", view: "linear" }, () => {
+        if (chrome.runtime.lastError) chrome.tabs.update(tab.id, { url });
+      });
+    } else {
+      chrome.tabs.update(tab.id, { url });
+    }
     if (!docked) window.close();
   });
 }

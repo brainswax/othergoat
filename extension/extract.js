@@ -236,6 +236,26 @@ function looksLikeStructuralTable(table) {
   );
 }
 
+function linkLooksLikeLinearHistory(link) {
+  const text = collapse(link?.text ?? "").toLowerCase();
+  const title = collapse(link?.title ?? "").toLowerCase();
+  return text === "linear history" || title === "linear history";
+}
+
+function linkHasPostBack(link) {
+  const blob = `${link?.href ?? ""} ${link?.onclick ?? ""}`;
+  return /__doPostBack/i.test(blob) || /linearhistory/i.test(blob);
+}
+
+/** Menu shows Linear History but it is not a postback (nothing to open). */
+export function linearHistoryUnavailable(page) {
+  const listed = /\blinear history\b/i.test(page?.text ?? "");
+  if (!listed) return false;
+  return !(page?.links ?? []).some(
+    (link) => linkLooksLikeLinearHistory(link) && linkHasPostBack(link),
+  );
+}
+
 export function detectView(page) {
   const hinted = collapse(
     [page.eventArgument, page.eventTarget, page.selectedMenu].filter(Boolean).join(" "),
@@ -670,15 +690,15 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
         page.text ?? "",
       ),
     );
-    if (view === "linear") batch.linearComplete = true;
+    if (view === "linear" || linearHistoryUnavailable(page)) {
+      batch.linearComplete = true;
+    }
   }
 
   if (opts.recordPti) {
     const pti = ptiRow(page.text ?? "", registration, capturedAt, page.url ?? "");
     if (pti) batch.pti.push(pti);
-    if (/\bPTI\s*21\b/i.test(collapse(page.text ?? ""))) {
-      batch.ptiComplete = true;
-    }
+    batch.ptiComplete = true;
   }
   return convertBatch(batch, subject.herdbook);
 }
@@ -747,6 +767,7 @@ export function snapshotFromDocument(doc, url) {
     href: anchor.href,
     text: collapse(anchor.textContent),
     title: collapse(anchor.getAttribute("title") ?? anchor.title ?? ""),
+    onclick: collapse(anchor.getAttribute("onclick") ?? ""),
   }));
   const selected =
     doc.querySelector("[aria-current='page'], .selected, .Selected, .active") ??

@@ -387,10 +387,59 @@ function menuText(node) {
   return String(node?.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function findLinearMenu(doc) {
-  return [...doc.querySelectorAll("a")].find(
-    (anchor) => menuText(anchor) === "linear history",
+function decodePostBack(source) {
+  return String(source ?? "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+function parseDoPostBack(source) {
+  const match = decodePostBack(source).match(
+    /__doPostBack\s*\(\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/,
   );
+  return match ? { target: match[1], argument: match[2] } : null;
+}
+
+function collectPostBacks(doc) {
+  const items = [];
+  for (const el of doc.querySelectorAll("a[href], [onclick]")) {
+    const parsed = parseDoPostBack(
+      `${el.getAttribute("href") ?? ""} ${el.getAttribute("onclick") ?? ""}`,
+    );
+    if (parsed) items.push({ ...parsed, text: menuText(el) });
+  }
+  const html = decodePostBack(doc.documentElement?.innerHTML ?? "");
+  for (const match of html.matchAll(
+    /__doPostBack\s*\(\s*['"]([^'"]*)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/g,
+  )) {
+    items.push({ target: match[1], argument: match[2], text: "" });
+  }
+  return items;
+}
+
+function findLinearPostBack(doc) {
+  const items = collectPostBacks(doc);
+  return (
+    items.find((item) => /linearhistory/i.test(item.argument)) ||
+    items.find((item) => /linearhistory/i.test(item.target)) ||
+    items.find((item) => item.text === "linear history") ||
+    items.find((item) => item.text.includes("linear history") && item.text.length < 48)
+  );
+}
+
+function submitPostBack(doc, target, argument) {
+  const form =
+    doc.querySelector("#aspnetForm") ||
+    doc.querySelector("form[action]") ||
+    doc.querySelector("form");
+  const eventTarget = doc.querySelector("input[name='__EVENTTARGET']");
+  const eventArgument = doc.querySelector("input[name='__EVENTARGUMENT']");
+  if (!form || !eventTarget || !eventArgument) return false;
+  eventTarget.value = target;
+  eventArgument.value = argument;
+  form.submit();
+  return true;
 }
 
 function pageLooksLinear(doc) {
@@ -398,40 +447,89 @@ function pageLooksLinear(doc) {
   return /Appraisal History For:/i.test(text) && /Linear Traits/i.test(text);
 }
 
+function rememberLinearView() {
+  try {
+    sessionStorage.setItem(VIEW_SS, "linear");
+  } catch {
+    /* ignore */
+  }
+}
+
+function forgetLinearView() {
+  try {
+    sessionStorage.removeItem(VIEW_SS);
+  } catch {
+    /* ignore */
+  }
+}
+
+function openLinearView(remaining) {
+  if (location.hash === LINEAR_HASH) {
+    rememberLinearView();
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
+  }
+  let want = "";
+  try {
+    want = sessionStorage.getItem(VIEW_SS) ?? "";
+  } catch {
+    /* ignore */
+  }
+  if (want !== "linear") return;
+  if (pageLooksLinear(document)) {
+    forgetLinearView();
+    return;
+  }
+  const post = findLinearPostBack(document);
+  if (post && submitPostBack(document, post.target, post.argument)) return;
+  if (linearMenuUnavailable(document)) {
+    forgetLinearView();
+    captureCurrentPage();
+    return;
+  }
+  if (remaining > 0) {
+    window.setTimeout(() => openLinearView(remaining - 1), 300);
+    return;
+  }
+  forgetLinearView();
+}
+
+function linearMenuUnavailable(doc) {
+  const labeled = [...doc.querySelectorAll("a, span, td, li, font, b, label")].some(
+    (el) => menuText(el) === "linear history",
+  );
+  return labeled && !findLinearPostBack(doc);
+}
+
+function captureCurrentPage() {
+  import(chrome.runtime.getURL("extract.js"))
+    .then((mod) => {
+      chrome.storage.local.get(SETTINGS_KEY, (data) => {
+        const batch = mod.extractFromDocument(
+          document,
+          location.href,
+          new Date().toISOString(),
+          data[SETTINGS_KEY],
+        );
+        if (batch) {
+          chrome.runtime.sendMessage({ type: "CAPTURE_BATCH", batch });
+        }
+      });
+    })
+    .catch(() => {});
+}
+
 function startViewOpener() {
-  const tryOpen = (remaining) => {
-    if (location.hash === LINEAR_HASH) {
-      try {
-        sessionStorage.setItem(VIEW_SS, "linear");
-      } catch {
-        /* ignore */
-      }
-      history.replaceState(null, "", `${location.pathname}${location.search}`);
+  window.addEventListener("hashchange", () => openLinearView(12));
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "OPEN_VIEW") return;
+    if (message.view === "linear") {
+      rememberLinearView();
+      openLinearView(12);
     }
-    let want = "";
-    try {
-      want = sessionStorage.getItem(VIEW_SS) ?? "";
-    } catch {
-      /* ignore */
-    }
-    if (want !== "linear") return;
-    if (pageLooksLinear(document)) {
-      try {
-        sessionStorage.removeItem(VIEW_SS);
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    const link = findLinearMenu(document);
-    if (link) {
-      link.click();
-      return;
-    }
-    if (remaining > 0) window.setTimeout(() => tryOpen(remaining - 1), 300);
-  };
-  window.addEventListener("hashchange", () => tryOpen(12));
-  tryOpen(12);
+    sendResponse({ ok: true });
+    return true;
+  });
+  openLinearView(12);
 }
 
 startViewOpener();
