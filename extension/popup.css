@@ -284,6 +284,14 @@ main {
   #list .complete.is-empty {
     color: #9a9a9a;
   }
+
+  #list .meta .sex.is-doe {
+    color: #e57aa8;
+  }
+
+  #list .meta .sex.is-buck {
+    color: #7aa8e5;
+  }
 }
 
 #list .sr-only {
@@ -314,6 +322,18 @@ main {
 #list .scores {
   color: color-mix(in srgb, CanvasText 65%, transparent);
   font-size: 12px;
+}
+
+#list .meta .sex {
+  font-weight: 600;
+}
+
+#list .meta .sex.is-doe {
+  color: #c43d7a;
+}
+
+#list .meta .sex.is-buck {
+  color: #2f6fbf;
 }
 
 #list .remove {

@@ -258,10 +258,14 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(byReg.PN1352104.dam_registration, "N1198765");
     assert.equal(byReg.PN1352104.sire_name, undefined);
     assert.equal(byReg.N1201234.registered_name, "SGCH ALDER*GLEN TRES LECHES 5*M");
+    assert.equal(byReg.N1201234.sex, "BUCK");
     assert.equal(byReg.N1201234.sire_registration, "N111111");
     assert.equal(byReg.N1201234.dam_registration, "N222222");
+    assert.equal(byReg.N1198765.sex, "DOE");
     assert.equal(byReg.N111111.registered_name, "SGCH SOME SIRE");
+    assert.equal(byReg.N111111.sex, "BUCK");
     assert.equal(byReg.N111111.sire_registration, "");
+    assert.equal(byReg.N222222.sex, "DOE");
     assert.equal(isIndividualComplete(byReg.PN1352104), true);
     assert.equal(isIndividualComplete(byReg.N1201234), false);
     assert.equal(batch.pti.length, 1);
