@@ -414,6 +414,8 @@ function animalSearchParts(row) {
     row.registration_number,
     row.date_of_birth,
     row.herdbook,
+    row.polled,
+    row.black,
   ];
 }
 

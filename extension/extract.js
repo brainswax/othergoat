@@ -208,6 +208,86 @@ export function parsePolled(text) {
   return "";
 }
 
+export function parseBlack(text) {
+  const blob = collapse(text);
+  if (/\bblack\b/i.test(blob) && !/\bisblack\b/i.test(blob)) return "Y";
+  return "";
+}
+
+function parseCssColor(value) {
+  const s = collapse(value).toLowerCase();
+  if (!s || s === "transparent" || s === "inherit" || s === "currentcolor") {
+    return null;
+  }
+  const rgb = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgb) {
+    return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
+  }
+  const hex = s.match(/^#([0-9a-f]{3,8})$/);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3 || h.length === 4) {
+      h = [...h].map((ch) => ch + ch).join("");
+    }
+    return {
+      r: Number.parseInt(h.slice(0, 2), 16),
+      g: Number.parseInt(h.slice(2, 4), 16),
+      b: Number.parseInt(h.slice(4, 6), 16),
+    };
+  }
+  const named = {
+    red: { r: 255, g: 0, b: 0 },
+    maroon: { r: 128, g: 0, b: 0 },
+    green: { r: 0, g: 128, b: 0 },
+    lime: { r: 0, g: 255, b: 0 },
+    darkgreen: { r: 0, g: 100, b: 0 },
+    black: { r: 0, g: 0, b: 0 },
+    blue: { r: 0, g: 0, b: 255 },
+    navy: { r: 0, g: 0, b: 128 },
+  };
+  return named[s] ?? null;
+}
+
+function colorKind(rgb) {
+  if (!rgb) return "";
+  const { r, g, b } = rgb;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max - min < 30 && max <= 50) return "black";
+  if (r >= 150 && r > g + 40 && r > b + 40) return "red";
+  if (g >= 100 && g > r + 25 && g >= b) return "green";
+  if (b >= 100 && b >= r && b >= g) return "blue";
+  return "other";
+}
+
+function ignoreBlackCoatColor(links) {
+  const kinds = (links ?? [])
+    .map((link) => colorKind(parseCssColor(link.color)))
+    .filter(Boolean);
+  if (kinds.length === 0) return true;
+  const blacks = kinds.filter((kind) => kind === "black").length;
+  return blacks * 2 >= kinds.length;
+}
+
+function flagsFromLinkStyle(link, skipBlackColor = false) {
+  let polled = "";
+  let black = "";
+  const cls = collapse(link?.className).toLowerCase();
+  if (/\bpolled\b/.test(cls)) polled = "Y";
+  if (/\bblack\b/.test(cls)) black = "Y";
+  const colorKindValue = colorKind(parseCssColor(link?.color));
+  const bgKind = colorKind(parseCssColor(link?.backgroundColor));
+  for (const kind of [colorKindValue, bgKind]) {
+    if (kind === "green") polled = "Y";
+    if (kind === "red") {
+      polled = "Y";
+      black = "Y";
+    }
+  }
+  if (colorKindValue === "black" && !skipBlackColor) black = "Y";
+  return { polled, black };
+}
+
 export function parseIndexes(text) {
   const blob = collapse(text);
   const grab = (label) =>
@@ -339,6 +419,9 @@ function goatLinks(links) {
       text: stripPedigreeLabel(link.text),
       title: collapse(link.title),
       registration: registrationFromHref(link.href ?? ""),
+      color: link.color ?? "",
+      backgroundColor: link.backgroundColor ?? "",
+      className: link.className ?? "",
     }))
     .filter((link) => link.registration && collapse(link.text).length <= 80);
 }
@@ -363,6 +446,7 @@ function matchLink(segment, links) {
 
 export function parsePedigreeNodes(text, links, tables = []) {
   const goat = goatLinks(links);
+  const skipBlackColor = ignoreBlackCoatColor(goat);
   const nodes = [];
   const seen = new Set();
   const add = (label, link) => {
@@ -370,11 +454,14 @@ export function parsePedigreeNodes(text, links, tables = []) {
     const key = `${label}|${link.registration}`;
     if (seen.has(key)) return;
     seen.add(key);
+    const marks = flagsFromLinkStyle(link, skipBlackColor);
     nodes.push({
       label,
       registration: link.registration,
       name: stripPedigreeLabel(link.text),
       herdbook: herdbookFromTitle(link.title),
+      polled: marks.polled,
+      black: marks.black,
     });
   };
 
@@ -410,11 +497,15 @@ function herdbookFromTitle(title) {
 }
 
 function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
+  const skipBlackColor = ignoreBlackCoatColor(goatLinks(links));
   return goatLinks(links).map((link) => {
+    const marks = flagsFromLinkStyle(link, skipBlackColor);
     const row = emptyIndividual();
     row.registration_number = link.registration;
     row.registered_name = stripPedigreeLabel(link.text);
     row.herdbook = herdbookFromTitle(link.title);
+    row.polled = marks.polled;
+    row.black = marks.black;
     row.source_url = sourceUrl;
     row.captured_at = capturedAt;
     return row;
@@ -449,6 +540,8 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
       row.registered_name = node.name;
       row.sex = sexFromPedigreeLabel(node.label);
       row.herdbook = node.herdbook ?? "";
+      row.polled = node.polled ?? "";
+      row.black = node.black ?? "";
       row.source_url = sourceUrl;
       row.captured_at = capturedAt;
       byReg.set(node.registration, row);
@@ -458,6 +551,8 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
         existing.registered_name = node.name;
       }
       if (!existing.sex) existing.sex = sexFromPedigreeLabel(node.label);
+      if (node.polled && !existing.polled) existing.polled = node.polled;
+      if (node.black && !existing.black) existing.black = node.black;
     }
   }
   for (const node of nodes) {
@@ -520,6 +615,7 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
     const sexI = headerIndex(headers, "sex");
     const dobI = headerIndex(headers, "dob");
     const polledI = headerIndex(headers, "ispolled", "polled");
+    const blackI = headerIndex(headers, "isblack", "black");
     for (const cells of rows.slice(1)) {
       const name = collapse(cells[nameI]);
       const registration = collapse(cells[regI]);
@@ -534,6 +630,7 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
       row.sex = sexI >= 0 ? sexFromCell(cells[sexI]) : "";
       row.date_of_birth = dobI >= 0 ? collapse(cells[dobI]) : "";
       row.polled = polledI >= 0 ? polledFromCell(cells[polledI]) : "";
+      row.black = blackI >= 0 ? polledFromCell(cells[blackI]) : "";
       if (current.sex === "BUCK") row.sire_registration = current.registration_number;
       if (current.sex === "DOE") row.dam_registration = current.registration_number;
       row.source_url = sourceUrl;
@@ -825,7 +922,16 @@ function subjectFromPage(page, registration, capturedAt) {
   row.herdbook = heading.herdbook;
   row.breed = breed.breed;
   row.breed_percent = breed.breed_percent;
-  row.polled = parsePolled(heading.notes);
+  row.polled = parsePolled(heading.notes) || parsePolled(page.title ?? "");
+  row.black = parseBlack(heading.notes) || parseBlack(page.title ?? "");
+  const self = goatLinks(page.links).find(
+    (link) => identityKey(link.registration) === identityKey(registration),
+  );
+  if (self) {
+    const marks = flagsFromLinkStyle(self, ignoreBlackCoatColor(goatLinks(page.links)));
+    if (marks.polled) row.polled = marks.polled;
+    if (marks.black) row.black = marks.black;
+  }
   row.date_of_birth = dob.date_of_birth;
   row.linear_final_score = dob.linear_final_score;
   row.source_url = page.url ?? "";
@@ -960,13 +1066,48 @@ function tableFromElement(table) {
   return { rows };
 }
 
+function elementAppearance(el) {
+  const classes = [];
+  let color = "";
+  let backgroundColor = "";
+  let node = el;
+  for (let depth = 0; depth < 4 && node && node.nodeType === 1; depth += 1) {
+    classes.push(String(node.className ?? ""));
+    const attrColor = node.getAttribute?.("color") || node.style?.color;
+    if (attrColor && !color) color = attrColor;
+    const attrBg = node.style?.backgroundColor;
+    if (attrBg && !backgroundColor) backgroundColor = attrBg;
+    node = node.parentElement;
+  }
+  if (el && typeof getComputedStyle === "function") {
+    try {
+      const style = getComputedStyle(el);
+      if (!color) color = style.color ?? "";
+      if (!backgroundColor) backgroundColor = style.backgroundColor ?? "";
+    } catch {
+      /* jsdom / detached */
+    }
+  }
+  return {
+    color,
+    backgroundColor,
+    className: classes.filter(Boolean).join(" "),
+  };
+}
+
 export function snapshotFromDocument(doc, url) {
-  const links = [...doc.querySelectorAll("a")].map((anchor) => ({
-    href: anchor.href,
-    text: collapse(anchor.textContent),
-    title: collapse(anchor.getAttribute("title") ?? anchor.title ?? ""),
-    onclick: collapse(anchor.getAttribute("onclick") ?? ""),
-  }));
+  const links = [...doc.querySelectorAll("a")].map((anchor) => {
+    const look = elementAppearance(anchor);
+    return {
+      href: anchor.href,
+      text: collapse(anchor.textContent),
+      title: collapse(anchor.getAttribute("title") ?? anchor.title ?? ""),
+      onclick: collapse(anchor.getAttribute("onclick") ?? ""),
+      color: look.color,
+      backgroundColor: look.backgroundColor,
+      className: look.className,
+    };
+  });
   const selected =
     doc.querySelector("[aria-current='page'], .selected, .Selected, .active") ??
     null;

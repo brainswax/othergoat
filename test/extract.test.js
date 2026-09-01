@@ -200,6 +200,34 @@ describe("parsePedigreeNodes", () => {
     assert.equal(nodes[2].name, "SGCH SOME SIRE");
   });
 
+  it("reads polled and black from pedigree name colors", () => {
+    const nodes = parsePedigreeNodes(PEDIGREE_TEXT, [
+      { ...PEDIGREE_LINKS[0], color: "rgb(0, 128, 0)" },
+      { ...PEDIGREE_LINKS[1], color: "red" },
+      { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 238)" },
+      { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 0)" },
+    ]);
+    const byLabel = Object.fromEntries(nodes.map((node) => [node.label, node]));
+    assert.equal(byLabel.S.polled, "Y");
+    assert.equal(byLabel.S.black, "");
+    assert.equal(byLabel.D.polled, "Y");
+    assert.equal(byLabel.D.black, "Y");
+    assert.equal(byLabel.SS.polled, "");
+    assert.equal(byLabel.SS.black, "");
+    assert.equal(byLabel.SD.polled, "");
+    assert.equal(byLabel.SD.black, "Y");
+  });
+
+  it("does not treat default black link text as black coat", () => {
+    const nodes = parsePedigreeNodes(PEDIGREE_TEXT, [
+      { ...PEDIGREE_LINKS[0], color: "rgb(0, 0, 0)" },
+      { ...PEDIGREE_LINKS[1], color: "rgb(0, 0, 0)" },
+      { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 0)" },
+      { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 0)" },
+    ]);
+    assert.equal(nodes.every((node) => node.black === ""), true);
+  });
+
   it("strips UI labels from link text", () => {
     const nodes = parsePedigreeNodes("SS : SGCH SOME SIRE", [
       {
@@ -275,6 +303,30 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(batch.pti[0].eta12, "4");
     assert.equal(batch.ptiComplete, true);
     assert.equal(batch.linearComplete, false);
+  });
+
+  it("copies pedigree color marks onto ancestor rows", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT.replace("(PB Doe)", "(PB Doe Polled)"),
+        links: [
+          { ...PEDIGREE_LINKS[0], color: "green" },
+          { ...PEDIGREE_LINKS[1], color: "rgb(0, 0, 238)" },
+          { ...PEDIGREE_LINKS[2], className: "black" },
+          { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 238)" },
+        ],
+      },
+      "t",
+      { captureAncestry: true },
+    );
+    const byReg = Object.fromEntries(
+      batch.individuals.map((row) => [row.registration_number, row]),
+    );
+    assert.equal(byReg.PN1352104.polled, "Y");
+    assert.equal(byReg.N1201234.polled, "Y");
+    assert.equal(byReg.N111111.black, "Y");
   });
 
   it("returns null when the URL is not a goat detail page", () => {
@@ -394,8 +446,8 @@ describe("extractFromSnapshot progeny", () => {
         tables: [
           {
             rows: [
-              ["Name", "Reg #", "Herdbook", "Breed", "Sex", "DOB", "IsPolled"],
-              ["KID ONE", "N000333333", "PB", "N", "F", "1/2/2024", "Y"],
+              ["Name", "Reg #", "Herdbook", "Breed", "Sex", "DOB", "IsPolled", "IsBlack"],
+              ["KID ONE", "N000333333", "PB", "N", "F", "1/2/2024", "Y", "Y"],
             ],
           },
         ],
@@ -407,6 +459,7 @@ describe("extractFromSnapshot progeny", () => {
     assert.equal(kid.dam_registration, "PN1352104");
     assert.equal(kid.sire_registration, "");
     assert.equal(kid.polled, "Y");
+    assert.equal(kid.black, "Y");
     assert.equal(isIndividualComplete(kid), false);
   });
 

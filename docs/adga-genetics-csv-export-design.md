@@ -59,12 +59,12 @@ A CSV is one table. Multiple tables are separate files in the zip.
 One row per registration.
 
 ```
-registration_number,registered_name,breed,breed_percent,herdbook,polled,sex,date_of_birth,linear_final_score,sire_registration,dam_registration,source_url,captured_at,notes
+registration_number,registered_name,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,sire_registration,dam_registration,source_url,captured_at,notes
 ```
 
 Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #.
 
-**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest.
+**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest. Polled and black follow the page legend: green name = polled, black name = black, red = both. The open animal also picks Polled/Black up from the heading.
 
 **Progeny:** each table row is a stub; `sire_registration` or `dam_registration` is set to the current animal (buck → sire, doe → dam).
 
@@ -129,7 +129,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 - Animal URL: `GoatDetail.aspx?RegNumber={REG}`.
 - Heading: `NAME - REG (PB Doe|Buck…)`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03`.
 - Breed: `Breed Percent: 100% N` → `breed_percent=100`, `breed=N`.
-- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe).
+- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe). Polled/black on the tree are name colors (green / black / red).
 - Views swap via ASP.NET postback on the same URL (`__EVENTARGUMENT`). Milestone 1 only reads the resulting DOM.
 - Linear History on Genetics is `LAYear` + `Age` + linear scores (Stature … Rear Udder Side View), then a Structural Traits table (Head, Shoulder Assembly, Front Legs, Rear Legs, Feet, Back, Rump, Udder Texture, General Appearance, Dairy Strength, Body Capacity, Mammary System, FS), plus miscellaneous codes when present. Type Eval / PTA tables are not LA rows. Layout tables (Pedigree, Registry, DOB chrome) are not progeny.
 
