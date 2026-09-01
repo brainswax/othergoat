@@ -357,9 +357,38 @@ function removeButton(kind, key) {
   return btn;
 }
 
-function metaRow(text, kind, key) {
+function genderMark(sex) {
+  const kind = String(sex ?? "").trim().toUpperCase();
+  if (kind !== "DOE" && kind !== "BUCK") return null;
+  const mark = el("span", `sex is-${kind.toLowerCase()}`);
+  mark.textContent = kind === "DOE" ? "♀" : "♂";
+  mark.title = kind === "DOE" ? "Doe" : "Buck";
+  mark.setAttribute("aria-label", kind === "DOE" ? "Doe" : "Buck");
+  return mark;
+}
+
+function animalSummary(row) {
+  const meta = el("div", "meta");
+  const id = (row.registration_number ?? "").trim();
+  if (id) meta.append(el("span", "reg", id));
+  const sex = genderMark(row.sex);
+  if (sex) meta.append(sex);
+  const rest = [row.date_of_birth, (row.herdbook ?? "").trim().toUpperCase()]
+    .filter(Boolean)
+    .join(" · ");
+  if (rest) {
+    meta.append(document.createTextNode(id || sex ? ` · ${rest}` : rest));
+  }
+  return meta;
+}
+
+function metaRow(summary, kind, key) {
   const row = el("div", "meta-row");
-  row.append(el("div", "meta", text));
+  if (typeof summary === "string") {
+    row.append(el("div", "meta", summary));
+  } else if (summary) {
+    row.append(summary);
+  }
   row.append(removeButton(kind, key));
   return row;
 }
@@ -417,17 +446,7 @@ function renderAnimals(individuals, linear, pti) {
         sourceUrl: row.source_url,
         focusKey: key,
       }),
-      metaRow(
-        [
-          row.registration_number,
-          row.date_of_birth,
-          (row.herdbook ?? "").trim().toUpperCase(),
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        "individuals",
-        row.registration_number,
-      ),
+      metaRow(animalSummary(row), "individuals", row.registration_number),
     ], key);
   }
 }
