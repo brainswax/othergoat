@@ -372,7 +372,10 @@ function animalSummary(row) {
   const id = (row.registration_number ?? "").trim();
   if (id) meta.append(el("span", "reg", id));
   const sex = genderMark(row.sex);
-  if (sex) meta.append(sex);
+  if (sex) {
+    if (id) meta.append(document.createTextNode(" · "));
+    meta.append(sex);
+  }
   const rest = [row.date_of_birth, (row.herdbook ?? "").trim().toUpperCase()]
     .filter(Boolean)
     .join(" · ");
