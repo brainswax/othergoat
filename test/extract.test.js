@@ -4,9 +4,11 @@ import {
   detectView,
   extractFromSnapshot,
   parseBreedPercent,
+  parseDobAndAppraisal,
   parseHeading,
   parsePedigreeNodes,
   registrationFromUrl,
+  titleFromName,
 } from "../extension/extract.js";
 import {
   emptyStore,
@@ -182,6 +184,30 @@ describe("parseHeading", () => {
   });
 });
 
+describe("titleFromName", () => {
+  it("reads SGCH before SG, and GCH before CH", () => {
+    assert.equal(titleFromName("SGCH SOME SIRE"), "SGCH");
+    assert.equal(titleFromName("SG ALDER*GLEN TRES BONNE 3*M"), "SG");
+    assert.equal(titleFromName("GCH A DOE"), "GCH");
+    assert.equal(titleFromName("CH A BUCK"), "CH");
+    assert.equal(titleFromName("TWIN WILLOWS AL KARAMELLO"), "");
+  });
+});
+
+describe("parseDobAndAppraisal", () => {
+  it("splits FS, condensed majors, and age from the identity pane", () => {
+    assert.deepEqual(
+      parseDobAndAppraisal("DOB: 3/20/2020 FS84 (+V++) @ 01-03"),
+      {
+        date_of_birth: "3/20/2020",
+        linear_final_score: "84",
+        linear_majors: "+V++",
+        linear_age: "01-03",
+      },
+    );
+  });
+});
+
 describe("parseBreedPercent", () => {
   it("splits percent and breed letter", () => {
     assert.deepEqual(parseBreedPercent("Breed Percent: 100% N"), {
@@ -280,13 +306,18 @@ describe("extractFromSnapshot pedigree", () => {
       batch.individuals.map((row) => [row.registration_number, row]),
     );
     assert.equal(byReg.PN1352104.registered_name, "SG ALDER*GLEN TRES BONNE 3*M");
+    assert.equal(byReg.PN1352104.title, "SG");
     assert.equal(byReg.PN1352104.sex, "DOE");
     assert.equal(byReg.PN1352104.breed, "N");
     assert.equal(byReg.PN1352104.breed_percent, "100");
+    assert.equal(byReg.PN1352104.linear_final_score, "84");
+    assert.equal(byReg.PN1352104.linear_majors, "+V++");
+    assert.equal(byReg.PN1352104.linear_age, "01-03");
     assert.equal(byReg.PN1352104.sire_registration, "N1201234");
     assert.equal(byReg.PN1352104.dam_registration, "N1198765");
     assert.equal(byReg.PN1352104.sire_name, undefined);
     assert.equal(byReg.N1201234.registered_name, "SGCH ALDER*GLEN TRES LECHES 5*M");
+    assert.equal(byReg.N1201234.title, "SGCH");
     assert.equal(byReg.N1201234.sex, "BUCK");
     assert.equal(byReg.N1201234.sire_registration, "N111111");
     assert.equal(byReg.N1201234.dam_registration, "N222222");
@@ -1005,7 +1036,7 @@ describe("csv zip", () => {
       [{ registration_number: "N1", registered_name: "Name, with comma" }],
       INDIVIDUAL_COLUMNS,
     );
-    assert.match(csv, /^registration_number,registered_name,breed,/);
+    assert.match(csv, /^registration_number,registered_name,title,breed,/);
     assert.equal(
       LINEAR_COLUMNS.slice(3, -3).join(","),
       "stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3",

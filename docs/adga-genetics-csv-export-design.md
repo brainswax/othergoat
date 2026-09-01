@@ -59,10 +59,10 @@ A CSV is one table. Multiple tables are separate files in the zip.
 One row per registration.
 
 ```
-registration_number,registered_name,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,sire_registration,dam_registration,source_url,captured_at,notes
+registration_number,registered_name,title,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,linear_majors,linear_age,sire_registration,dam_registration,source_url,captured_at,notes
 ```
 
-Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #.
+Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #. `title` is SG / SGCH / CH / GCH when that prefix is on the name. `linear_final_score`, `linear_majors`, and `linear_age` come from the identity pane (`FS84 (+V++) @ 01-03`).
 
 **Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest. Ancestor polled/black are implied from name colors: green = polled, black (when distinct from default link text) = black coat, red = both; unmarked names store `N`. The open animal uses the identity pane only (heading `Polled`/`Black`, else `N`), not tree colors. If that animal’s own page disagrees with a color seen on someone else’s pedigree, the identity page wins.
 
@@ -127,7 +127,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 ## 9. Live page notes
 
 - Animal URL: `GoatDetail.aspx?RegNumber={REG}`.
-- Heading: `NAME - REG (PB Doe|Buck…)`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03`.
+- Heading: `NAME - REG (PB Doe|Buck…)`. Prefixes `SG` / `SGCH` / `CH` / `GCH` are stored in `title`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03` → `date_of_birth`, `linear_final_score`, `linear_majors`, `linear_age`.
 - Breed: `Breed Percent: 100% N` → `breed_percent=100`, `breed=N`.
 - Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe). Polled/black on the tree are name colors (green / black / red); unmarked names store `N`. Those implied flags lose to the same animal’s own identity heading.
 - Views swap via ASP.NET postback on the same URL (`__EVENTARGUMENT`). Milestone 1 only reads the resulting DOM.

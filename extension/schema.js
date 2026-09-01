@@ -3,6 +3,7 @@
 export const INDIVIDUAL_COLUMNS = [
   "registration_number",
   "registered_name",
+  "title",
   "breed",
   "breed_percent",
   "herdbook",
@@ -11,6 +12,8 @@ export const INDIVIDUAL_COLUMNS = [
   "sex",
   "date_of_birth",
   "linear_final_score",
+  "linear_majors",
+  "linear_age",
   "sire_registration",
   "dam_registration",
   "source_url",
@@ -20,7 +23,7 @@ export const INDIVIDUAL_COLUMNS = [
 
 /**
  * GoatDetail identity pane — filled by visiting that animal, not by a
- * pedigree/progeny stub. Polled, black, FS, sire/dam, PTI, and LA are optional.
+ * pedigree/progeny stub. Polled, black, title, FS, majors, age, sire/dam, PTI, and LA are optional.
  */
 export const INDIVIDUAL_IDENTITY_FIELDS = [
   "registered_name",

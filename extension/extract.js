@@ -178,19 +178,30 @@ export function parseHeading(heading, registration) {
   return { registered_name: "", sex: "", herdbook: "", notes: "" };
 }
 
+export function titleFromName(name) {
+  const match = collapse(name).match(/^(SGCH|GCH|SG|CH)\b/i);
+  return match ? match[1].toUpperCase() : "";
+}
+
+function applyRegisteredName(row, name) {
+  const cleaned = collapse(name);
+  if (!cleaned) return;
+  row.registered_name = cleaned;
+  const title = titleFromName(cleaned);
+  if (title) row.title = title;
+}
+
 export function parseDobAndAppraisal(text) {
   const blob = collapse(text);
   const dob = blob.match(/DOB:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
   const fs = blob.match(/\bFS\s*(\d{2,3})\b/i);
   const majors = blob.match(/\(([+\-EVGPevgp\s]{2,})\)/);
   const age = blob.match(/@\s*(\d{2}-\d{2})/);
-  const notes = [];
-  if (majors) notes.push(collapse(majors[1]));
-  if (age) notes.push(`age ${age[1]}`);
   return {
     date_of_birth: dob?.[1] ?? "",
     linear_final_score: fs?.[1] ?? "",
-    notes: notes.join(" · "),
+    linear_majors: majors ? collapse(majors[1]) : "",
+    linear_age: age?.[1] ?? "",
   };
 }
 
@@ -510,7 +521,7 @@ function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
     const marks = pedigreeFlags(link, skipBlackColor);
     const row = emptyIndividual();
     row.registration_number = link.registration;
-    row.registered_name = stripPedigreeLabel(link.text);
+    applyRegisteredName(row, stripPedigreeLabel(link.text));
     row.herdbook = herdbookFromTitle(link.title);
     row.polled = marks.polled;
     row.black = marks.black;
@@ -547,7 +558,7 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
     if (!byReg.has(node.registration)) {
       const row = emptyIndividual();
       row.registration_number = node.registration;
-      row.registered_name = node.name;
+      applyRegisteredName(row, node.name);
       row.sex = sexFromPedigreeLabel(node.label);
       row.herdbook = node.herdbook ?? "";
       row.polled = node.polled ?? "";
@@ -560,7 +571,7 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
     } else {
       const existing = byReg.get(node.registration);
       if (node.name && !existing.registered_name) {
-        existing.registered_name = node.name;
+        applyRegisteredName(existing, node.name);
       }
       if (!existing.sex) existing.sex = sexFromPedigreeLabel(node.label);
       if (node.polled === "Y" || !existing.polled) existing.polled = node.polled;
@@ -638,7 +649,7 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
       }
       const row = emptyIndividual();
       row.registration_number = registration;
-      row.registered_name = name;
+      applyRegisteredName(row, name);
       row.herdbook = bookI >= 0 ? collapse(cells[bookI]) : "";
       row.breed = breedI >= 0 ? collapse(cells[breedI]) : "";
       row.sex = sexI >= 0 ? sexFromCell(cells[sexI]) : "";
@@ -917,7 +928,7 @@ function subjectFromPage(page, registration, capturedAt) {
   const breed = parseBreedPercent(page.text);
   const row = emptyIndividual();
   row.registration_number = registration;
-  row.registered_name = heading.registered_name;
+  applyRegisteredName(row, heading.registered_name);
   row.sex = heading.sex;
   row.herdbook = heading.herdbook;
   row.breed = breed.breed;
@@ -938,9 +949,11 @@ function subjectFromPage(page, registration, capturedAt) {
   row.black_from = "identity";
   row.date_of_birth = dob.date_of_birth;
   row.linear_final_score = dob.linear_final_score;
+  row.linear_majors = dob.linear_majors;
+  row.linear_age = dob.linear_age;
   row.source_url = page.url ?? "";
   row.captured_at = capturedAt;
-  row.notes = [heading.notes, dob.notes].filter(Boolean).join(" · ");
+  row.notes = heading.notes;
   return row;
 }
 

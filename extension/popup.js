@@ -376,7 +376,11 @@ function animalSummary(row) {
     if (id) meta.append(document.createTextNode(" · "));
     meta.append(sex);
   }
-  const rest = [row.date_of_birth, (row.herdbook ?? "").trim().toUpperCase()]
+  const rest = [
+    (row.title ?? "").trim().toUpperCase(),
+    row.date_of_birth,
+    (row.herdbook ?? "").trim().toUpperCase(),
+  ]
     .filter(Boolean)
     .join(" · ");
   if (rest) {
@@ -411,11 +415,15 @@ function paintSearchClear() {
 function animalSearchParts(row) {
   return [
     row.registered_name,
+    row.title,
     row.registration_number,
     row.date_of_birth,
     row.herdbook,
     row.polled,
     row.black,
+    row.linear_final_score,
+    row.linear_majors,
+    row.linear_age,
   ];
 }
 
