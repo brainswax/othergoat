@@ -425,6 +425,10 @@ function linearSearchParts(row, nameOf) {
     row.age,
     row.final_score,
     row.majors,
+    row.head,
+    row.misc1,
+    row.misc2,
+    row.misc3,
   ];
 }
 

@@ -450,6 +450,9 @@ describe("extractFromSnapshot linear", () => {
     Structural Traits
     LAYear Age Head Shoulder Assembly Front Legs Rear Legs Feet Back Rump Udder Texture General Appearance Dairy Strength Body Capacity Mammary System FS
     2025 03-02 V G A G V E V V V E A 84
+    Miscellaneous Codes
+    LAYear Age Code1 Code2 Code3
+    2025 03-02 32 14
   `;
 
   it("reads Genetics Linear History rows and ignores Type Eval soup", () => {
@@ -482,7 +485,20 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linear[1].appraisal_date, "2025");
     assert.equal(batch.linear[1].age, "03-02");
     assert.equal(batch.linear[1].final_score, "84");
-    assert.equal(batch.linear[1].majors, "VVEA");
+    assert.equal(batch.linear[1].head, "V");
+    assert.equal(batch.linear[1].shoulder, "G");
+    assert.equal(batch.linear[1].front_legs, "A");
+    assert.equal(batch.linear[1].rear_legs, "G");
+    assert.equal(batch.linear[1].feet, "V");
+    assert.equal(batch.linear[1].back, "E");
+    assert.equal(batch.linear[1].rump, "V");
+    assert.equal(batch.linear[1].udder_texture, "V");
+    assert.equal(batch.linear[1].ga, "V");
+    assert.equal(batch.linear[1].ds, "E");
+    assert.equal(batch.linear[1].bc, "A");
+    assert.equal(batch.linear[1].majors, "VEA");
+    assert.equal(batch.linear[1].misc1, "32");
+    assert.equal(batch.linear[1].misc2, "14");
     assert.equal(batch.pti.length, 1);
     assert.equal(batch.pti[0].pti21, "40");
     assert.equal(batch.pti[0].eta12, "29");
@@ -543,6 +559,113 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.view, "type_eval");
     assert.equal(batch.linear.length, 0);
     assert.equal(batch.pti[0].pti21, "40");
+  });
+
+  it("reads structural letters and misc codes from Linear History tables", () => {
+    const batch = extractFromSnapshot({
+      url: SAMPLE_URL,
+      eventArgument: "LinearHistory",
+      text: "Appraisal History For: TWIN WILLOWS AL KARAMELLO - N001352104 (PB Doe)",
+      tables: [
+        {
+          rows: [
+            [
+              "LAYear",
+              "Age",
+              "Stature",
+              "Strength",
+              "Dairyness",
+              "Rump Angle",
+              "Rump Width",
+              "Rear Leg Side View",
+              "Fore Udder Attachment",
+              "Rear Udder Height",
+              "Rear Udder Arch",
+              "Medial",
+              "Udder Depth",
+              "Teat Placement",
+              "Teat Diameter",
+              "Teat Length",
+              "Body Depth",
+              "Rear Udder Side View",
+            ],
+            [
+              "2025",
+              "03-02",
+              "32",
+              "34",
+              "32",
+              "37",
+              "33",
+              "33",
+              "31",
+              "30",
+              "36",
+              "14",
+              "34",
+              "21",
+              "10",
+              "37",
+              "40",
+              "1",
+            ],
+          ],
+        },
+        {
+          rows: [
+            [
+              "LAYear",
+              "Age",
+              "Head",
+              "Shoulder Assembly",
+              "Front Legs",
+              "Rear Legs",
+              "Feet",
+              "Back",
+              "Rump",
+              "Udder Texture",
+              "General Appearance",
+              "Dairy Strength",
+              "Body Capacity",
+              "Mammary System",
+              "FS",
+            ],
+            [
+              "2025",
+              "03-02",
+              "V",
+              "G",
+              "A",
+              "G",
+              "V",
+              "E",
+              "V",
+              "V",
+              "V",
+              "E",
+              "A",
+              "V",
+              "84",
+            ],
+          ],
+        },
+        {
+          rows: [
+            ["LAYear", "Age", "Code1", "Code2", "Code3"],
+            ["2025", "03-02", "32", "14", ""],
+          ],
+        },
+      ],
+    });
+    assert.equal(batch.linear.length, 1);
+    assert.equal(batch.linear[0].stat, "32");
+    assert.equal(batch.linear[0].head, "V");
+    assert.equal(batch.linear[0].udder_texture, "V");
+    assert.equal(batch.linear[0].ms, "V");
+    assert.equal(batch.linear[0].majors, "VEAV");
+    assert.equal(batch.linear[0].final_score, "84");
+    assert.equal(batch.linear[0].misc1, "32");
+    assert.equal(batch.linear[0].misc2, "14");
   });
 });
 

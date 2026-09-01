@@ -67,6 +67,41 @@ const TRAIT_HEADER_ALIASES = {
   rusv: ["rusv", "rear udder side view"],
 };
 
+/** Genetics Structural Traits table, then the four major categories. */
+const STRUCTURAL_HEADER_ALIASES = {
+  head: ["head"],
+  shoulder: ["shoulder", "shoulder assembly"],
+  front_legs: ["front legs", "legs front"],
+  rear_legs: ["rear legs", "legs rear", "back legs"],
+  feet: ["feet"],
+  back: ["back"],
+  rump: ["rump"],
+  udder_texture: ["udder texture"],
+  ga: ["ga", "general appearance"],
+  ds: ["ds", "dairy strength"],
+  bc: ["bc", "body capacity"],
+  ms: ["ms", "mammary", "mammary system"],
+};
+
+const MISC_HEADER_ALIASES = {
+  misc1: ["misc1", "misc 1", "code1", "code 1", "remark1", "remark 1"],
+  misc2: ["misc2", "misc 2", "code2", "code 2", "remark2", "remark 2"],
+  misc3: ["misc3", "misc 3", "code3", "code 3", "remark3", "remark 3"],
+};
+
+const GENETICS_STRUCTURAL_ORDER = [
+  "head",
+  "shoulder",
+  "front_legs",
+  "rear_legs",
+  "feet",
+  "back",
+  "rump",
+  "udder_texture",
+];
+
+const GENETICS_MAJOR_ORDER = ["ga", "ds", "bc", "ms"];
+
 export function registrationFromUrl(url) {
   try {
     const parsed = new URL(url);
@@ -229,10 +264,31 @@ function looksLikeLinearTraitTable(table) {
 
 function looksLikeStructuralTable(table) {
   const headers = (table?.rows?.[0] ?? []).map((cell) => headerKey(cell));
-  return (
-    headers.includes("layear") &&
-    headers.includes("fs") &&
-    headers.some((h) => h.includes("general appearance") || h === "ga")
+  const hasYear = headers.some((h) => h === "layear" || h === "year");
+  const hasAge = headers.includes("age");
+  const hasStructural =
+    headers.includes("head") ||
+    headers.includes("shoulder assembly") ||
+    headers.includes("udder texture") ||
+    headers.includes("fs") ||
+    headers.some((h) => h.includes("general appearance") || h === "ga");
+  return hasYear && hasAge && hasStructural && !looksLikeLinearTraitTable(table);
+}
+
+function looksLikeMiscTable(table) {
+  if (looksLikeLinearTraitTable(table) || looksLikeStructuralTable(table)) {
+    return false;
+  }
+  const headers = (table?.rows?.[0] ?? []).map((cell) => headerKey(cell));
+  const hasYear = headers.some((h) => h === "layear" || h === "year");
+  const hasAge = headers.includes("age");
+  if (!hasYear || !hasAge) return false;
+  return headers.some(
+    (h) =>
+      /^(misc|code|remark|defect)/.test(h) ||
+      /^misc\s*\d$/.test(h) ||
+      /^code\s*\d$/.test(h) ||
+      h === "codes",
   );
 }
 
@@ -416,16 +472,20 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
   return [...byReg.values()];
 }
 
-function mapTraitHeaders(headers) {
+function mapHeaderAliases(headers, aliases) {
   const map = {};
   headers.forEach((cell, index) => {
     const h = headerKey(cell);
-    for (const [key, aliases] of Object.entries(TRAIT_HEADER_ALIASES)) {
+    for (const [key, names] of Object.entries(aliases)) {
       if (map[key] != null) continue;
-      if (aliases.some((alias) => h === alias)) map[key] = index;
+      if (names.some((alias) => h === alias)) map[key] = index;
     }
   });
   return map;
+}
+
+function mapTraitHeaders(headers) {
+  return mapHeaderAliases(headers, TRAIT_HEADER_ALIASES);
 }
 
 function sexFromCell(value) {
@@ -500,78 +560,180 @@ function linearFromScoreRow(registration, year, age, scores, extras, capturedAt,
   return row;
 }
 
+function linearRowKey(year, age) {
+  return `${year}|${age}`;
+}
+
+function ensureLinearRow(byKey, registration, year, age, capturedAt, sourceUrl) {
+  const key = linearRowKey(year, age);
+  if (!byKey.has(key)) {
+    const row = emptyLinear();
+    row.registration_number = registration;
+    row.appraisal_date = year;
+    row.age = age;
+    row.source_url = sourceUrl;
+    row.captured_at = capturedAt;
+    byKey.set(key, row);
+  }
+  return byKey.get(key);
+}
+
+function paintMajors(row) {
+  if (!row.majors) {
+    row.majors = GENETICS_MAJOR_ORDER.map((key) => row[key])
+      .filter(Boolean)
+      .join("");
+    return;
+  }
+  if (row.ga || row.ds || row.bc || row.ms) return;
+  const letters = String(row.majors).replace(/\s+/g, "");
+  GENETICS_MAJOR_ORDER.forEach((key, index) => {
+    row[key] = letters[index] ?? "";
+  });
+}
+
+function applyCategoryLetters(row, letters) {
+  GENETICS_STRUCTURAL_ORDER.forEach((key, index) => {
+    if (letters[index]) row[key] = letters[index];
+  });
+  GENETICS_MAJOR_ORDER.forEach((key, index) => {
+    if (letters[8 + index]) row[key] = letters[8 + index];
+  });
+  paintMajors(row);
+}
+
+function applyMappedCells(row, cells, map) {
+  for (const [key, index] of Object.entries(map)) {
+    const value = collapse(cells[index]);
+    if (value) row[key] = value;
+  }
+}
+
+function parseMiscCodes(value) {
+  return (collapse(value).match(/\b\d{1,2}\b/g) ?? []).slice(0, 3);
+}
+
+function applyMiscCodes(row, codes) {
+  ["misc1", "misc2", "misc3"].forEach((key, index) => {
+    if (codes[index]) row[key] = codes[index];
+  });
+}
+
 function extractLinearFromTables(tables, registration, capturedAt, sourceUrl) {
-  const linear = [];
-  const majorsByKey = new Map();
+  const byKey = new Map();
   for (const table of tables ?? []) {
     const rows = table.rows ?? [];
-    if (looksLikeStructuralTable(table)) {
-      const headers = rows[0].map((cell) => collapse(cell));
-      const yearI = headerIndex(headers, "layear", "year");
-      const ageI = headerIndex(headers, "age");
-      const fsI = headerIndex(headers, "fs");
-      const gaI = headerIndex(headers, "general appearance");
-      const dsI = headerIndex(headers, "dairy strength");
-      const bcI = headerIndex(headers, "body capacity");
-      const msI = headerIndex(headers, "mammary system");
-      for (const cells of rows.slice(1)) {
-        const year = yearI >= 0 ? collapse(cells[yearI]) : "";
-        const age = ageI >= 0 ? collapse(cells[ageI]) : "";
-        if (!/^\d{4}$/.test(year)) continue;
-        majorsByKey.set(`${year}|${age}`, {
-          final_score: fsI >= 0 ? collapse(cells[fsI]) : "",
-          majors: [gaI, dsI, bcI, msI]
-            .map((index) => (index >= 0 ? collapse(cells[index]) : ""))
-            .filter(Boolean)
-            .join(""),
-        });
-      }
-      continue;
-    }
-    if (!looksLikeLinearTraitTable(table)) continue;
+    if (rows.length < 2) continue;
     const headers = rows[0].map((cell) => collapse(cell));
     const yearI = headerIndex(headers, "layear", "year");
     const ageI = headerIndex(headers, "age");
-    const traits = mapTraitHeaders(headers);
-    const rusvI = headerIndex(headers, "rear udder side view");
-    for (const cells of rows.slice(1)) {
-      const year = yearI >= 0 ? collapse(cells[yearI]) : "";
-      const age = ageI >= 0 ? collapse(cells[ageI]) : "";
-      if (!/^\d{4}$/.test(year) || !/^\d{2}-\d{2}$/.test(age)) continue;
-      const scores = GENETICS_LINEAR_ORDER.map((key) =>
-        traits[key] != null ? collapse(cells[traits[key]]) : "",
-      );
-      if (scores.filter(isScore).length < 8) continue;
-      const extras = [];
-      if (rusvI >= 0) extras.push(`rusv=${collapse(cells[rusvI])}`);
-      linear.push(
-        linearFromScoreRow(registration, year, age, scores, extras, capturedAt, sourceUrl),
-      );
+    if (yearI < 0 || ageI < 0) continue;
+
+    if (looksLikeLinearTraitTable(table)) {
+      const traits = mapTraitHeaders(headers);
+      const rusvI = headerIndex(headers, "rear udder side view");
+      for (const cells of rows.slice(1)) {
+        const year = collapse(cells[yearI]);
+        const age = collapse(cells[ageI]);
+        if (!/^\d{4}$/.test(year) || !/^\d{2}-\d{2}$/.test(age)) continue;
+        const scores = GENETICS_LINEAR_ORDER.map((key) =>
+          traits[key] != null ? collapse(cells[traits[key]]) : "",
+        );
+        if (scores.filter(isScore).length < 8) continue;
+        const extras = [];
+        if (rusvI >= 0) extras.push(`rusv=${collapse(cells[rusvI])}`);
+        const row = linearFromScoreRow(
+          registration,
+          year,
+          age,
+          scores,
+          extras,
+          capturedAt,
+          sourceUrl,
+        );
+        const existing = byKey.get(linearRowKey(year, age));
+        if (existing) {
+          GENETICS_LINEAR_ORDER.forEach((key) => {
+            if (row[key]) existing[key] = row[key];
+          });
+          if (row.rusv) existing.rusv = row.rusv;
+        } else {
+          byKey.set(linearRowKey(year, age), row);
+        }
+      }
+      continue;
+    }
+
+    if (looksLikeStructuralTable(table)) {
+      const mapped = mapHeaderAliases(headers, STRUCTURAL_HEADER_ALIASES);
+      const fsI = headerIndex(headers, "fs");
+      for (const cells of rows.slice(1)) {
+        const year = collapse(cells[yearI]);
+        const age = collapse(cells[ageI]);
+        if (!/^\d{4}$/.test(year)) continue;
+        const row = ensureLinearRow(
+          byKey,
+          registration,
+          year,
+          age,
+          capturedAt,
+          sourceUrl,
+        );
+        applyMappedCells(row, cells, mapped);
+        if (fsI >= 0) {
+          const fs = collapse(cells[fsI]);
+          if (fs) row.final_score = fs;
+        }
+        paintMajors(row);
+      }
+      continue;
+    }
+
+    if (looksLikeMiscTable(table)) {
+      const mapped = mapHeaderAliases(headers, MISC_HEADER_ALIASES);
+      const codesI = headerIndex(headers, "codes", "code", "misc", "remarks");
+      for (const cells of rows.slice(1)) {
+        const year = collapse(cells[yearI]);
+        const age = collapse(cells[ageI]);
+        if (!/^\d{4}$/.test(year)) continue;
+        const row = ensureLinearRow(
+          byKey,
+          registration,
+          year,
+          age,
+          capturedAt,
+          sourceUrl,
+        );
+        applyMappedCells(row, cells, mapped);
+        if (!row.misc1 && codesI >= 0) {
+          applyMiscCodes(row, parseMiscCodes(cells[codesI]));
+        }
+        if (!row.misc1) {
+          const leftover = cells
+            .map((cell, index) => (index === yearI || index === ageI ? "" : collapse(cell)))
+            .filter(Boolean)
+            .join(" ");
+          applyMiscCodes(row, parseMiscCodes(leftover));
+        }
+      }
     }
   }
-  for (const row of linear) {
-    const extra = majorsByKey.get(`${row.appraisal_date}|${row.age}`);
-    if (!extra) continue;
-    row.final_score = extra.final_score;
-    row.majors = extra.majors;
-  }
-  return linear;
+  return [...byKey.values()];
 }
 
 export function extractLinearFromText(text, registration, capturedAt, sourceUrl) {
   const blob = String(text ?? "").replace(/\u00a0/g, " ");
   const block = blob.match(
-    /Linear Traits[\s\S]*?LAYear\s+Age\s+Stature[\s\S]*?(?=Structural Traits|The data listed|$)/i,
+    /Linear Traits[\s\S]*?LAYear\s+Age\s+Stature[\s\S]*?(?=Structural Traits|Miscellaneous|The data listed|$)/i,
   );
-  if (!block) return [];
-  const linear = [];
-  const rowRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:\d+\s+){14}\d+(?:\s+\d+)?)/g;
-  let match;
-  while ((match = rowRe.exec(block[0]))) {
-    const scores = collapse(match[3]).split(" ").filter(Boolean);
-    if (scores.filter(isScore).length < 8) continue;
-    linear.push(
-      linearFromScoreRow(
+  const byKey = new Map();
+  if (block) {
+    const rowRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:\d+\s+){14}\d+(?:\s+\d+)?)/g;
+    let match;
+    while ((match = rowRe.exec(block[0]))) {
+      const scores = collapse(match[3]).split(" ").filter(Boolean);
+      if (scores.filter(isScore).length < 8) continue;
+      const row = linearFromScoreRow(
         registration,
         match[1],
         match[2],
@@ -579,26 +741,50 @@ export function extractLinearFromText(text, registration, capturedAt, sourceUrl)
         [],
         capturedAt,
         sourceUrl,
-      ),
-    );
-  }
-  const structural = blob.match(
-    /Structural Traits[\s\S]*?LAYear\s+Age[\s\S]*?(?=Pedigree|PTI21|$)/i,
-  );
-  if (structural) {
-    const structRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:[A-Z]\s+)+)(\d{2,3})/g;
-    let sm;
-    while ((sm = structRe.exec(structural[0]))) {
-      const letters = collapse(sm[3]).split(" ");
-      const row = linear.find(
-        (item) => item.appraisal_date === sm[1] && item.age === sm[2],
       );
-      if (!row) continue;
-      row.final_score = sm[4];
-      row.majors = letters.slice(-4).join("");
+      byKey.set(linearRowKey(match[1], match[2]), row);
     }
   }
-  return linear;
+  const structural = blob.match(
+    /Structural Traits[\s\S]*?LAYear\s+Age[\s\S]*?(?=Miscellaneous|Pedigree|PTI21|$)/i,
+  );
+  if (structural) {
+    const structRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:[A-Z]\s+)+)(\d{2,3})?/g;
+    let sm;
+    while ((sm = structRe.exec(structural[0]))) {
+      const letters = collapse(sm[3]).split(/\s+/).filter((item) => /^[A-Z]$/i.test(item));
+      if (letters.length < 4) continue;
+      const row = ensureLinearRow(
+        byKey,
+        registration,
+        sm[1],
+        sm[2],
+        capturedAt,
+        sourceUrl,
+      );
+      applyCategoryLetters(row, letters);
+      if (sm[4]) row.final_score = sm[4];
+    }
+  }
+  const misc = blob.match(
+    /Miscellaneous(?:\s+Codes)?[\s\S]*?(?=Pedigree|PTI21|Linear Traits|Structural Traits|$)/i,
+  );
+  if (misc) {
+    const miscRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:\d{1,2}\b\s*){1,3})/g;
+    let mm;
+    while ((mm = miscRe.exec(misc[0]))) {
+      const row = ensureLinearRow(
+        byKey,
+        registration,
+        mm[1],
+        mm[2],
+        capturedAt,
+        sourceUrl,
+      );
+      applyMiscCodes(row, parseMiscCodes(mm[3]));
+    }
+  }
+  return [...byKey.values()];
 }
 
 export function extractLinearRows(tables, registration, capturedAt, sourceUrl, text = "") {
