@@ -51,7 +51,7 @@ export function scrapeStatus(visited, hasData) {
   return "missing";
 }
 
-/** Complete animals first, then registered name, then registration. */
+/** Complete animals first (ID check), then registered name, then registration. */
 export function compareIndividuals(a, b) {
   const complete =
     Number(isIndividualComplete(b)) - Number(isIndividualComplete(a));

@@ -19,6 +19,7 @@ const SETTINGS_KEY = "settings";
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
 const SEARCH_KEY = "searchQuery";
+const UI_KEY = "popupUi";
 const docked = new URLSearchParams(location.search).has("docked");
 if (docked) document.documentElement.dataset.docked = "true";
 const EMPTY_COPY = {
@@ -52,6 +53,11 @@ document.getElementById("version").textContent =
 
 let currentTab = "animals";
 let lastStore = { individuals: [], linear: [], pti: [] };
+let focusKey = "";
+let pendingScroll = 0;
+let anchorOffset = null;
+let restoredPlace = false;
+let persistUiTimer = 0;
 
 function tabKind() {
   if (currentTab === "linear") return "linear";
@@ -86,18 +92,97 @@ function el(tag, className, text) {
   return node;
 }
 
-function appendItem(parts) {
+function rowFocusKey(tab, row) {
+  if (tab === "linear") return `linear:${linearKey(row)}`;
+  if (tab === "pti") return `pti:${ptiKey(row)}`;
+  return `animal:${identityKey(row.registration_number)}`;
+}
+
+function appendItem(parts, key) {
   const li = document.createElement("li");
+  if (key) li.dataset.focusKey = key;
   for (const part of parts) {
     if (part) li.append(part);
   }
   listEl.append(li);
 }
 
+function persistUi() {
+  clearTimeout(persistUiTimer);
+  persistUiTimer = setTimeout(() => {
+    chrome.storage.local.set({
+      [UI_KEY]: {
+        tab: currentTab,
+        focusKey,
+        scroll: panelEl.scrollTop,
+        anchorOffset,
+      },
+    });
+  }, 80);
+}
+
+function rememberFocus(key) {
+  focusKey = key || "";
+  const row = findFocusRow();
+  anchorOffset = row ? rowOffsetInPanel(row) : null;
+  persistUi();
+}
+
+function applyTabChrome(tab) {
+  currentTab = tab;
+  for (const button of tabButtons) {
+    const selected = button.dataset.tab === tab;
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+    button.tabIndex = selected ? 0 : -1;
+  }
+  panelEl.setAttribute("aria-labelledby", `tab-${tab}`);
+}
+
+function findFocusRow() {
+  if (!focusKey) return null;
+  return listEl.querySelector(`[data-focus-key="${CSS.escape(focusKey)}"]`);
+}
+
+function rowOffsetInPanel(row) {
+  return row.getBoundingClientRect().top - panelEl.getBoundingClientRect().top;
+}
+
+function rowInPanel(row) {
+  if (!row) return false;
+  const box = row.getBoundingClientRect();
+  const pane = panelEl.getBoundingClientRect();
+  return box.top < pane.bottom && box.bottom > pane.top;
+}
+
+function pinFocusRow(row, offset) {
+  if (!row || offset == null || Number.isNaN(Number(offset))) return;
+  panelEl.scrollTop += rowOffsetInPanel(row) - Number(offset);
+}
+
+function paintFocus() {
+  for (const li of listEl.children) {
+    li.classList.toggle("is-current", li.dataset.focusKey === focusKey);
+  }
+}
+
+function restorePlace() {
+  paintFocus();
+  const row = findFocusRow();
+  if (row && anchorOffset != null) {
+    pinFocusRow(row, anchorOffset);
+    return;
+  }
+  if (row) {
+    row.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  if (pendingScroll) panelEl.scrollTop = pendingScroll;
+}
+
 const CHECK_SVG =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M3.2 8.4 6.6 11.6 12.8 4.4"/></svg>';
 
-function scrapeMark(label, status, titles, url) {
+function scrapeMark(label, status, titles, url, onOpen) {
   const mark = url ? el("a", "") : el("span", "");
   mark.className = `complete is-${status}`;
   mark.title = titles[status] ?? titles.missing;
@@ -106,6 +191,7 @@ function scrapeMark(label, status, titles, url) {
     mark.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      onOpen?.();
       openGoatPage(url, url.includes("#ogr-linear") ? "linear" : "");
     });
   }
@@ -124,7 +210,7 @@ function scrapeMark(label, status, titles, url) {
   return mark;
 }
 
-function scrapeMarks(flags = {}, registration = "", sourceUrl = "") {
+function scrapeMarks(flags = {}, registration = "", sourceUrl = "", onOpen) {
   const pedigree = goatDetailUrl(registration, sourceUrl);
   const linear = goatDetailUrl(registration, sourceUrl, "linear");
   const wrap = el("span", "marks");
@@ -137,6 +223,7 @@ function scrapeMarks(flags = {}, registration = "", sourceUrl = "") {
         missing: "Visit this animal’s Genetics page for identity",
       },
       pedigree,
+      onOpen,
     ),
     scrapeMark(
       "LA",
@@ -147,6 +234,7 @@ function scrapeMarks(flags = {}, registration = "", sourceUrl = "") {
         missing: "Open Linear History on this animal",
       },
       linear,
+      onOpen,
     ),
     scrapeMark(
       "PTI",
@@ -157,6 +245,7 @@ function scrapeMarks(flags = {}, registration = "", sourceUrl = "") {
         missing: "Visit this animal’s Genetics page for PTI",
       },
       pedigree,
+      onOpen,
     ),
   );
   return wrap;
@@ -221,7 +310,7 @@ function openGoatPage(url, view = "") {
   });
 }
 
-function nameLink(name, registration, sourceUrl) {
+function nameLink(name, registration, sourceUrl, onOpen) {
   const url = goatDetailUrl(registration, sourceUrl);
   if (!url) return el("div", "name", name);
   const a = el("a", "name", name);
@@ -229,6 +318,7 @@ function nameLink(name, registration, sourceUrl) {
   a.title = "Open on ADGA Genetics";
   a.addEventListener("click", (event) => {
     event.preventDefault();
+    onOpen?.();
     openGoatPage(url);
   });
   return a;
@@ -237,12 +327,15 @@ function nameLink(name, registration, sourceUrl) {
 function titleRow(name, capturedAt, opts = {}) {
   const top = el("div", "row");
   const left = el("div", "title");
+  const onOpen = () => rememberFocus(opts.focusKey);
   if (opts.marks) {
-    left.append(scrapeMarks(opts.marks, opts.registration, opts.sourceUrl));
+    left.append(
+      scrapeMarks(opts.marks, opts.registration, opts.sourceUrl, onOpen),
+    );
   }
   left.append(
     opts.registration
-      ? nameLink(name, opts.registration, opts.sourceUrl)
+      ? nameLink(name, opts.registration, opts.sourceUrl, onOpen)
       : el("div", "name", name),
   );
   top.append(left);
@@ -315,11 +408,13 @@ function ptiSearchParts(row, nameOf) {
 
 function renderAnimals(individuals, linear, pti) {
   for (const row of individuals) {
+    const key = rowFocusKey("animals", row);
     appendItem([
       titleRow(row.registered_name || row.registration_number, row.captured_at, {
         marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
+        focusKey: key,
       }),
       metaRow(
         [
@@ -332,18 +427,20 @@ function renderAnimals(individuals, linear, pti) {
         "individuals",
         row.registration_number,
       ),
-    ]);
+    ], key);
   }
 }
 
 function renderLinear(linear, nameOf, individuals, pti) {
   for (const row of linear) {
     const title = nameOf(row.registration_number);
+    const key = rowFocusKey("linear", row);
     appendItem([
       titleRow(title || row.registration_number, row.captured_at, {
         marks: flagsOf(row.registration_number, individuals, linear, pti),
         registration: row.registration_number,
         sourceUrl: row.source_url,
+        focusKey: key,
       }),
       metaRow(
         [
@@ -358,13 +455,14 @@ function renderLinear(linear, nameOf, individuals, pti) {
         "linear",
         linearKey(row),
       ),
-    ]);
+    ], key);
   }
 }
 
 function renderPti(pti, nameOf, individuals, linear) {
   for (const row of pti) {
     const title = nameOf(row.registration_number);
+    const key = rowFocusKey("pti", row);
     const scores = [
       row.pti21 ? `PTI21 ${row.pti21}` : "",
       row.pti12 ? `PTI12 ${row.pti12}` : "",
@@ -373,26 +471,26 @@ function renderPti(pti, nameOf, individuals, linear) {
     ]
       .filter(Boolean)
       .join(" · ");
-    appendItem([
-      titleRow(title || row.registration_number, row.captured_at, {
-        marks: flagsOf(row.registration_number, individuals, linear, pti),
-        registration: row.registration_number,
-        sourceUrl: row.source_url,
-      }),
-      metaRow(row.registration_number || "", "pti", ptiKey(row)),
-      scores ? el("div", "scores", scores) : null,
-    ]);
+    appendItem(
+      [
+        titleRow(title || row.registration_number, row.captured_at, {
+          marks: flagsOf(row.registration_number, individuals, linear, pti),
+          registration: row.registration_number,
+          sourceUrl: row.source_url,
+          focusKey: key,
+        }),
+        metaRow(row.registration_number || "", "pti", ptiKey(row)),
+        scores ? el("div", "scores", scores) : null,
+      ],
+      key,
+    );
   }
 }
 
 function setTab(tab) {
-  currentTab = tab;
-  for (const button of tabButtons) {
-    const selected = button.dataset.tab === tab;
-    button.setAttribute("aria-selected", selected ? "true" : "false");
-    button.tabIndex = selected ? 0 : -1;
-  }
-  panelEl.setAttribute("aria-labelledby", `tab-${tab}`);
+  applyTabChrome(tab);
+  panelEl.scrollTop = 0;
+  persistUi();
   render(lastStore);
   void refresh();
 }
@@ -429,6 +527,10 @@ function saveSettings() {
 }
 
 function render(store) {
+  const keepScroll = restoredPlace ? panelEl.scrollTop : null;
+  const focused = restoredPlace ? findFocusRow() : null;
+  const pinOffset =
+    focused && rowInPanel(focused) ? rowOffsetInPanel(focused) : null;
   lastStore = store;
   const individuals = store.individuals ?? [];
   const linear = store.linear ?? [];
@@ -478,10 +580,27 @@ function render(store) {
   downloadBtn.disabled = !anyRows;
   clearBtn.disabled = !anyRows;
 
-  if (onSettings || shown.length === 0) return;
-  if (currentTab === "linear") renderLinear(shownLinear, nameOf, individuals, pti);
-  else if (currentTab === "pti") renderPti(shownPti, nameOf, individuals, linear);
-  else renderAnimals(shownIndividuals, linear, pti);
+  if (!onSettings && shown.length > 0) {
+    if (currentTab === "linear") {
+      renderLinear(shownLinear, nameOf, individuals, pti);
+    } else if (currentTab === "pti") {
+      renderPti(shownPti, nameOf, individuals, linear);
+    } else {
+      renderAnimals(shownIndividuals, linear, pti);
+    }
+  }
+
+  if (!restoredPlace) {
+    restorePlace();
+    restoredPlace = true;
+    return;
+  }
+  paintFocus();
+  if (keepScroll != null) panelEl.scrollTop = keepScroll;
+  const next = findFocusRow();
+  if (next && pinOffset != null) {
+    pinFocusRow(next, pinOffset);
+  }
 }
 
 function send(message) {
@@ -571,6 +690,8 @@ ancestryOpt.addEventListener("change", saveSettings);
 ptiOpt.addEventListener("change", saveSettings);
 linearOpt.addEventListener("change", saveSettings);
 
+panelEl.addEventListener("scroll", persistUi, { passive: true });
+
 searchInput.addEventListener("input", () => {
   persistSearch();
   paintSearchClear();
@@ -584,10 +705,15 @@ searchClearBtn.addEventListener("click", () => {
   render(lastStore);
 });
 
-chrome.storage.local.get([SETTINGS_KEY, SEARCH_KEY], (data) => {
+chrome.storage.local.get([SETTINGS_KEY, SEARCH_KEY, UI_KEY], (data) => {
   paintSettings(data[SETTINGS_KEY] ?? DEFAULT_SETTINGS);
   const saved = data[SEARCH_KEY];
   if (typeof saved === "string") searchInput.value = saved;
+  const ui = data[UI_KEY];
+  if (ui && TABS.includes(ui.tab)) applyTabChrome(ui.tab);
+  if (typeof ui?.focusKey === "string") focusKey = ui.focusKey;
+  pendingScroll = Number(ui?.scroll) || 0;
+  if (typeof ui?.anchorOffset === "number") anchorOffset = ui.anchorOffset;
   paintSearchClear();
   refresh().catch((err) => {
     statusEl.hidden = false;
