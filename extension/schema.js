@@ -72,6 +72,7 @@ export function compareIndividuals(a, b) {
 /** Same groups as Genetics Linear History / LA reports. */
 export const LINEAR_COLUMNS = [
   "registration_number",
+  "registered_name",
   "appraisal_date",
   "age",
   "stat",
@@ -132,6 +133,7 @@ export const LA_TRAIT_KEYS = [
 
 export const PTI_COLUMNS = [
   "registration_number",
+  "registered_name",
   "pti21",
   "pti12",
   "eta21",

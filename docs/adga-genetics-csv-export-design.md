@@ -73,17 +73,17 @@ Parent links are registration numbers only. The parent’s name lives on the par
 One row per Linear History event.
 
 ```
-registration_number,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3,source_url,captured_at,notes
+registration_number,registered_name,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3,source_url,captured_at,notes
 ```
 
-Trait keys follow Genetics Linear History / LA report groups: linear scores, structural letters, the four majors (`ga`, `ds`, `bc`, `ms`), final score, then miscellaneous codes. Unmapped Genetics columns go in `notes`.
+`registered_name` is copied from the individual row so a spreadsheet is readable without joining. Trait keys follow Genetics Linear History / LA report groups: linear scores, structural letters, the four majors (`ga`, `ds`, `bc`, `ms`), final score, then miscellaneous codes. Unmapped Genetics columns go in `notes`.
 
 ### pti.csv
 
 One row per registration. The left pane always has four slots (empty if not published).
 
 ```
-registration_number,pti21,pti12,eta21,eta12,source_url,captured_at
+registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_at
 ```
 
 ---

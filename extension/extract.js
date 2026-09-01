@@ -1021,6 +1021,11 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
     if (pti) batch.pti.push(pti);
     batch.ptiComplete = true;
   }
+  const named = subject.registered_name;
+  if (named) {
+    for (const row of batch.linear) row.registered_name = named;
+    for (const row of batch.pti) row.registered_name = named;
+  }
   return convertBatch(batch, subject.herdbook);
 }
 

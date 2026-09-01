@@ -50,8 +50,8 @@ If you already loaded an older build, click **Reload** on `chrome://extensions`,
 The zip contains three CSVs (one table each):
 
 - `individuals.csv` — one row per **ADGA registration ID** (`PD2237546`, not Genetics `D002237546`); `sire_registration` / `dam_registration` only (no parent names). `title` is SG/SGCH/CH/GCH. Identity pane FS, condensed majors, and appraisal age go on this row. Pedigree creates a stub for every animal in the visible tree.
-- `linear_appraisals.csv` — one row per Linear History event: linear scores, structural letters, GA/DS/BC/MS, final score, miscellaneous codes.
-- `pti.csv` — one row per registration: `pti21`, `pti12`, `eta21`, `eta12`.
+- `linear_appraisals.csv` — one row per Linear History event: registration, registered name, linear scores, structural letters, GA/DS/BC/MS, final score, miscellaneous codes.
+- `pti.csv` — one row per registration: registered name, `pti21`, `pti12`, `eta21`, `eta12`.
 
 Opening Pedigree creates a stub row for every animal in the visible tree (name, registration, parent registrations). Visiting that animal later fills breed, DOB, LA, and PTI. Empty cells are not overwritten.
 

@@ -13,6 +13,7 @@ import {
 import {
   emptyStore,
   LINEAR_COLUMNS,
+  PTI_COLUMNS,
   INDIVIDUAL_COLUMNS,
   isIndividualComplete,
   scrapeStatus,
@@ -334,6 +335,7 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(isIndividualComplete(byReg.N1201234), false);
     assert.equal(batch.pti.length, 1);
     assert.equal(batch.pti[0].pti21, "142");
+    assert.equal(batch.pti[0].registered_name, "SG ALDER*GLEN TRES BONNE 3*M");
     assert.equal(batch.pti[0].pti12, "12");
     assert.equal(batch.pti[0].eta21, "8");
     assert.equal(batch.pti[0].eta12, "4");
@@ -602,6 +604,7 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linearComplete, true);
     assert.equal(batch.ptiComplete, true);
     assert.equal(batch.linear.length, 2);
+    assert.equal(batch.linear[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     assert.equal(batch.linear[0].appraisal_date, "2024");
     assert.equal(batch.linear[0].stat, "28");
     assert.equal(batch.linear[0].st, "30");
@@ -623,6 +626,7 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linear[1].misc1, "32");
     assert.equal(batch.linear[1].misc2, "14");
     assert.equal(batch.pti.length, 1);
+    assert.equal(batch.pti[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     assert.equal(batch.pti[0].pti21, "40");
     assert.equal(batch.pti[0].eta12, "29");
   });
@@ -656,6 +660,8 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.individuals.length, 0);
     assert.equal(batch.linear.length, 2);
     assert.equal(batch.pti.length, 1);
+    assert.equal(batch.linear[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
+    assert.equal(batch.pti[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     assert.equal(batch.pti[0].pti21, "40");
   });
 
@@ -1038,8 +1044,16 @@ describe("csv zip", () => {
     );
     assert.match(csv, /^registration_number,registered_name,title,breed,/);
     assert.equal(
-      LINEAR_COLUMNS.slice(3, -3).join(","),
+      LINEAR_COLUMNS.slice(0, 4).join(","),
+      "registration_number,registered_name,appraisal_date,age",
+    );
+    assert.equal(
+      LINEAR_COLUMNS.slice(4, -3).join(","),
       "stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3",
+    );
+    assert.equal(
+      PTI_COLUMNS.slice(0, 2).join(","),
+      "registration_number,registered_name",
     );
     assert.match(csv, /"Name, with comma"/);
     const files = storeToZipFiles({
@@ -1051,6 +1065,22 @@ describe("csv zip", () => {
       files.map((f) => f.name),
       ["individuals.csv", "linear_appraisals.csv", "pti.csv"],
     );
+  });
+
+  it("fills LA and PTI registered_name from the individual row", () => {
+    const files = storeToZipFiles({
+      individuals: [
+        { registration_number: "PN1352104", registered_name: "SG ALDER*GLEN TRES BONNE 3*M" },
+      ],
+      linear: [{ registration_number: "PN1352104", appraisal_date: "2025", age: "03-02" }],
+      pti: [{ registration_number: "PN1352104", pti21: "142" }],
+    });
+    const linear = files.find((file) => file.name === "linear_appraisals.csv").text;
+    const pti = files.find((file) => file.name === "pti.csv").text;
+    assert.match(linear, /^registration_number,registered_name,appraisal_date,/);
+    assert.match(linear, /PN1352104,SG ALDER\*GLEN TRES BONNE 3\*M,2025/);
+    assert.match(pti, /^registration_number,registered_name,pti21,/);
+    assert.match(pti, /PN1352104,SG ALDER\*GLEN TRES BONNE 3\*M,142/);
   });
 
   it("names the download with a local timestamp", () => {
