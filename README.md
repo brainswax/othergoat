@@ -16,11 +16,11 @@ Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-exp
 
 ## Install
 
-Until this is on the Chrome Web Store, install **0.2.39** from GitHub:
+Until this is on the Chrome Web Store, install **0.2.46** from GitHub:
 
-**[Download Other Goats Records 0.2.39](https://github.com/brainswax/othergoat/releases/download/v0.2.39/other-goats-records-0.2.39.zip)**
+**[Download Other Goats Records 0.2.46](https://github.com/brainswax/othergoat/releases/download/v0.2.46/other-goats-records-0.2.46.zip)**
 
-([0.2.39 release](https://github.com/brainswax/othergoat/releases/tag/v0.2.39) · [All releases](https://github.com/brainswax/othergoat/releases))
+([0.2.46 release](https://github.com/brainswax/othergoat/releases/tag/v0.2.46) · [All releases](https://github.com/brainswax/othergoat/releases))
 
 1. Unzip the file. You should get a folder named `other-goats-records-…` that contains `manifest.json`.
 2. In Chrome, open `chrome://extensions`.
