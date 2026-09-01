@@ -288,6 +288,14 @@ function flagsFromLinkStyle(link, skipBlackColor = false) {
   return { polled, black };
 }
 
+function pedigreeFlags(link, skipBlackColor = false) {
+  const marks = flagsFromLinkStyle(link, skipBlackColor);
+  return {
+    polled: marks.polled === "Y" ? "Y" : "N",
+    black: marks.black === "Y" ? "Y" : "N",
+  };
+}
+
 export function parseIndexes(text) {
   const blob = collapse(text);
   const grab = (label) =>
@@ -454,7 +462,7 @@ export function parsePedigreeNodes(text, links, tables = []) {
     const key = `${label}|${link.registration}`;
     if (seen.has(key)) return;
     seen.add(key);
-    const marks = flagsFromLinkStyle(link, skipBlackColor);
+    const marks = pedigreeFlags(link, skipBlackColor);
     nodes.push({
       label,
       registration: link.registration,
@@ -499,13 +507,15 @@ function herdbookFromTitle(title) {
 function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
   const skipBlackColor = ignoreBlackCoatColor(goatLinks(links));
   return goatLinks(links).map((link) => {
-    const marks = flagsFromLinkStyle(link, skipBlackColor);
+    const marks = pedigreeFlags(link, skipBlackColor);
     const row = emptyIndividual();
     row.registration_number = link.registration;
     row.registered_name = stripPedigreeLabel(link.text);
     row.herdbook = herdbookFromTitle(link.title);
     row.polled = marks.polled;
     row.black = marks.black;
+    row.polled_from = "pedigree";
+    row.black_from = "pedigree";
     row.source_url = sourceUrl;
     row.captured_at = capturedAt;
     return row;
@@ -542,6 +552,8 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
       row.herdbook = node.herdbook ?? "";
       row.polled = node.polled ?? "";
       row.black = node.black ?? "";
+      row.polled_from = "pedigree";
+      row.black_from = "pedigree";
       row.source_url = sourceUrl;
       row.captured_at = capturedAt;
       byReg.set(node.registration, row);
@@ -551,8 +563,10 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
         existing.registered_name = node.name;
       }
       if (!existing.sex) existing.sex = sexFromPedigreeLabel(node.label);
-      if (node.polled && !existing.polled) existing.polled = node.polled;
-      if (node.black && !existing.black) existing.black = node.black;
+      if (node.polled === "Y" || !existing.polled) existing.polled = node.polled;
+      if (node.black === "Y" || !existing.black) existing.black = node.black;
+      existing.polled_from = "pedigree";
+      existing.black_from = "pedigree";
     }
   }
   for (const node of nodes) {
@@ -629,8 +643,10 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
       row.breed = breedI >= 0 ? collapse(cells[breedI]) : "";
       row.sex = sexI >= 0 ? sexFromCell(cells[sexI]) : "";
       row.date_of_birth = dobI >= 0 ? collapse(cells[dobI]) : "";
-      row.polled = polledI >= 0 ? polledFromCell(cells[polledI]) : "";
-      row.black = blackI >= 0 ? polledFromCell(cells[blackI]) : "";
+      row.polled = polledI >= 0 ? polledFromCell(cells[polledI]) || "N" : "";
+      row.black = blackI >= 0 ? polledFromCell(cells[blackI]) || "N" : "";
+      if (polledI >= 0) row.polled_from = "progeny";
+      if (blackI >= 0) row.black_from = "progeny";
       if (current.sex === "BUCK") row.sire_registration = current.registration_number;
       if (current.sex === "DOE") row.dam_registration = current.registration_number;
       row.source_url = sourceUrl;
@@ -932,6 +948,10 @@ function subjectFromPage(page, registration, capturedAt) {
     if (marks.polled) row.polled = marks.polled;
     if (marks.black) row.black = marks.black;
   }
+  if (row.polled !== "Y") row.polled = "N";
+  if (row.black !== "Y") row.black = "N";
+  row.polled_from = "identity";
+  row.black_from = "identity";
   row.date_of_birth = dob.date_of_birth;
   row.linear_final_score = dob.linear_final_score;
   row.source_url = page.url ?? "";

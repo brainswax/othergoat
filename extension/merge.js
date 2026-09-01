@@ -43,8 +43,31 @@ export function ptiKey(row) {
   return String(row?.registration_number ?? "").trim();
 }
 
+/** Identity page beats progeny table; both beat pedigree name colors. */
+const FLAG_SOURCE_RANK = { identity: 3, progeny: 2, pedigree: 1 };
+
+function mergeCoatFlags(existing, incoming, next) {
+  for (const key of ["polled", "black"]) {
+    const fromKey = `${key}_from`;
+    const inFrom = String(incoming?.[fromKey] ?? "").trim();
+    const exFrom = String(existing?.[fromKey] ?? "").trim();
+    const inRank = FLAG_SOURCE_RANK[inFrom] ?? 0;
+    const exRank = FLAG_SOURCE_RANK[exFrom] ?? 0;
+    if (exRank > inRank) {
+      next[key] = existing?.[key] ?? "";
+      next[fromKey] = exFrom;
+    } else if (inFrom) {
+      next[fromKey] = inFrom;
+    } else if (exFrom) {
+      next[fromKey] = exFrom;
+    }
+  }
+}
+
 export function mergeIndividual(existing, incoming) {
-  return mergeRow(existing, incoming, INDIVIDUAL_COLUMNS);
+  const next = mergeRow(existing, incoming, INDIVIDUAL_COLUMNS);
+  mergeCoatFlags(existing, incoming, next);
+  return next;
 }
 
 export function mergeLinear(existing, incoming) {

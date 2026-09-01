@@ -209,12 +209,12 @@ describe("parsePedigreeNodes", () => {
     ]);
     const byLabel = Object.fromEntries(nodes.map((node) => [node.label, node]));
     assert.equal(byLabel.S.polled, "Y");
-    assert.equal(byLabel.S.black, "");
+    assert.equal(byLabel.S.black, "N");
     assert.equal(byLabel.D.polled, "Y");
     assert.equal(byLabel.D.black, "Y");
-    assert.equal(byLabel.SS.polled, "");
-    assert.equal(byLabel.SS.black, "");
-    assert.equal(byLabel.SD.polled, "");
+    assert.equal(byLabel.SS.polled, "N");
+    assert.equal(byLabel.SS.black, "N");
+    assert.equal(byLabel.SD.polled, "N");
     assert.equal(byLabel.SD.black, "Y");
   });
 
@@ -225,7 +225,8 @@ describe("parsePedigreeNodes", () => {
       { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 0)" },
       { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 0)" },
     ]);
-    assert.equal(nodes.every((node) => node.black === ""), true);
+    assert.equal(nodes.every((node) => node.polled === "N"), true);
+    assert.equal(nodes.every((node) => node.black === "N"), true);
   });
 
   it("strips UI labels from link text", () => {
@@ -294,6 +295,10 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(byReg.N111111.sex, "BUCK");
     assert.equal(byReg.N111111.sire_registration, "");
     assert.equal(byReg.N222222.sex, "DOE");
+    assert.equal(byReg.PN1352104.polled, "N");
+    assert.equal(byReg.PN1352104.black, "N");
+    assert.equal(byReg.N1201234.polled, "N");
+    assert.equal(byReg.N1201234.black, "N");
     assert.equal(isIndividualComplete(byReg.PN1352104), true);
     assert.equal(isIndividualComplete(byReg.N1201234), false);
     assert.equal(batch.pti.length, 1);
@@ -325,8 +330,41 @@ describe("extractFromSnapshot pedigree", () => {
       batch.individuals.map((row) => [row.registration_number, row]),
     );
     assert.equal(byReg.PN1352104.polled, "Y");
+    assert.equal(byReg.PN1352104.black, "N");
+    assert.equal(byReg.PN1352104.polled_from, "identity");
+    assert.equal(byReg.PN1352104.black_from, "identity");
     assert.equal(byReg.N1201234.polled, "Y");
+    assert.equal(byReg.N1201234.black, "N");
+    assert.equal(byReg.N1201234.polled_from, "pedigree");
+    assert.equal(byReg.N111111.polled, "N");
     assert.equal(byReg.N111111.black, "Y");
+    assert.equal(byReg.N1198765.polled, "N");
+    assert.equal(byReg.N1198765.black, "N");
+  });
+
+  it("does not copy pedigree name colors onto the open animal", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT,
+        links: [
+          { ...PEDIGREE_LINKS[0], color: "green" },
+          { ...PEDIGREE_LINKS[1], color: "rgb(0, 0, 238)" },
+          { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 238)" },
+          { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 238)" },
+        ],
+      },
+      "t",
+      { captureAncestry: true },
+    );
+    const byReg = Object.fromEntries(
+      batch.individuals.map((row) => [row.registration_number, row]),
+    );
+    assert.equal(byReg.PN1352104.polled, "N");
+    assert.equal(byReg.PN1352104.polled_from, "identity");
+    assert.equal(byReg.N1201234.polled, "Y");
+    assert.equal(byReg.N1201234.polled_from, "pedigree");
   });
 
   it("returns null when the URL is not a goat detail page", () => {
@@ -460,6 +498,8 @@ describe("extractFromSnapshot progeny", () => {
     assert.equal(kid.sire_registration, "");
     assert.equal(kid.polled, "Y");
     assert.equal(kid.black, "Y");
+    assert.equal(kid.polled_from, "progeny");
+    assert.equal(kid.black_from, "progeny");
     assert.equal(isIndividualComplete(kid), false);
   });
 
@@ -817,6 +857,63 @@ describe("merge", () => {
       individuals: [{ registration_number: "N1", breed: "N" }],
     });
     assert.equal(second.individuals.N1.breed, "N");
+  });
+
+  it("lets an identity page overwrite pedigree name colors", () => {
+    const first = mergeBatch(emptyStore(), {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "Y",
+          black: "Y",
+          polled_from: "pedigree",
+          black_from: "pedigree",
+        },
+      ],
+    });
+    const second = mergeBatch(first, {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "N",
+          black: "N",
+          polled_from: "identity",
+          black_from: "identity",
+        },
+      ],
+    });
+    assert.equal(second.individuals.N1.polled, "N");
+    assert.equal(second.individuals.N1.black, "N");
+    assert.equal(second.individuals.N1.polled_from, "identity");
+  });
+
+  it("does not let pedigree name colors overwrite an identity page", () => {
+    const first = mergeBatch(emptyStore(), {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "Y",
+          black: "N",
+          polled_from: "identity",
+          black_from: "identity",
+        },
+      ],
+    });
+    const second = mergeBatch(first, {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "N",
+          black: "Y",
+          polled_from: "pedigree",
+          black_from: "pedigree",
+        },
+      ],
+    });
+    assert.equal(second.individuals.N1.polled, "Y");
+    assert.equal(second.individuals.N1.black, "N");
+    assert.equal(second.individuals.N1.polled_from, "identity");
+    assert.equal(second.individuals.N1.black_from, "identity");
   });
 
   it("removes one animal without touching LA or PTI", () => {

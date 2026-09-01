@@ -40,7 +40,7 @@ Background store: `chrome.storage.local` `{ individuals, linear, pti }`.
 
 Merge:
 
-- Individual key: ADGA registration ID (not Genetics `RegNumber`). `D002237546` + PB → `PD2237546`. Later non-empty field values replace earlier ones; blanks do not clobber.
+- Individual key: ADGA registration ID (not Genetics `RegNumber`). `D002237546` + PB → `PD2237546`. Later non-empty field values replace earlier ones; blanks do not clobber. Polled/black are an exception: the animal’s own GoatDetail identity pane outranks a progeny `IsPolled`/`IsBlack` cell, which outranks pedigree name colors. A later identity visit overwrites an earlier pedigree guess; pedigree colors never overwrite identity.
 - LA key: `registration_number` + `appraisal_date` (or `age` if no date).
 - PTI key: `registration_number`.
 
@@ -64,7 +64,7 @@ registration_number,registered_name,breed,breed_percent,herdbook,polled,black,se
 
 Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #.
 
-**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest. Polled and black follow the page legend: green name = polled, black name = black, red = both. The open animal also picks Polled/Black up from the heading.
+**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest. Ancestor polled/black are implied from name colors: green = polled, black (when distinct from default link text) = black coat, red = both; unmarked names store `N`. The open animal uses the identity pane only (heading `Polled`/`Black`, else `N`), not tree colors. If that animal’s own page disagrees with a color seen on someone else’s pedigree, the identity page wins.
 
 **Progeny:** each table row is a stub; `sire_registration` or `dam_registration` is set to the current animal (buck → sire, doe → dam).
 
@@ -129,7 +129,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 - Animal URL: `GoatDetail.aspx?RegNumber={REG}`.
 - Heading: `NAME - REG (PB Doe|Buck…)`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03`.
 - Breed: `Breed Percent: 100% N` → `breed_percent=100`, `breed=N`.
-- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe). Polled/black on the tree are name colors (green / black / red).
+- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe). Polled/black on the tree are name colors (green / black / red); unmarked names store `N`. Those implied flags lose to the same animal’s own identity heading.
 - Views swap via ASP.NET postback on the same URL (`__EVENTARGUMENT`). Milestone 1 only reads the resulting DOM.
 - Linear History on Genetics is `LAYear` + `Age` + linear scores (Stature … Rear Udder Side View), then a Structural Traits table (Head, Shoulder Assembly, Front Legs, Rear Legs, Feet, Back, Rump, Udder Texture, General Appearance, Dairy Strength, Body Capacity, Mammary System, FS), plus miscellaneous codes when present. Type Eval / PTA tables are not LA rows. Layout tables (Pedigree, Registry, DOB chrome) are not progeny.
 
