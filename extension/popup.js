@@ -376,7 +376,11 @@ function animalSummary(row) {
     if (id) meta.append(document.createTextNode(" · "));
     meta.append(sex);
   }
-  const rest = [row.date_of_birth, (row.herdbook ?? "").trim().toUpperCase()]
+  const rest = [
+    (row.title ?? "").trim().toUpperCase(),
+    row.date_of_birth,
+    (row.herdbook ?? "").trim().toUpperCase(),
+  ]
     .filter(Boolean)
     .join(" · ");
   if (rest) {
@@ -411,9 +415,15 @@ function paintSearchClear() {
 function animalSearchParts(row) {
   return [
     row.registered_name,
+    row.title,
     row.registration_number,
     row.date_of_birth,
     row.herdbook,
+    row.polled,
+    row.black,
+    row.linear_final_score,
+    row.linear_majors,
+    row.linear_age,
   ];
 }
 
@@ -424,7 +434,14 @@ function linearSearchParts(row, nameOf) {
     row.appraisal_date,
     row.age,
     row.final_score,
-    row.majors,
+    row.ga,
+    row.ds,
+    row.bc,
+    row.ms,
+    row.head,
+    row.misc1,
+    row.misc2,
+    row.misc3,
   ];
 }
 
@@ -471,7 +488,7 @@ function renderLinear(linear, nameOf, individuals, pti) {
           row.appraisal_date,
           row.age,
           row.final_score ? `FS ${row.final_score}` : "",
-          row.majors,
+          [row.ga, row.ds, row.bc, row.ms].filter(Boolean).join(" "),
         ]
           .filter(Boolean)
           .join(" · "),

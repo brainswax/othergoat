@@ -67,6 +67,41 @@ const TRAIT_HEADER_ALIASES = {
   rusv: ["rusv", "rear udder side view"],
 };
 
+/** Genetics Structural Traits table, then the four major categories. */
+const STRUCTURAL_HEADER_ALIASES = {
+  head: ["head"],
+  shoulder: ["shoulder", "shoulder assembly"],
+  front_legs: ["front legs", "legs front"],
+  rear_legs: ["rear legs", "legs rear", "back legs"],
+  feet: ["feet"],
+  back: ["back"],
+  rump: ["rump"],
+  udder_texture: ["udder texture"],
+  ga: ["ga", "general appearance"],
+  ds: ["ds", "dairy strength"],
+  bc: ["bc", "body capacity"],
+  ms: ["ms", "mammary", "mammary system"],
+};
+
+const MISC_HEADER_ALIASES = {
+  misc1: ["misc1", "misc 1", "code1", "code 1", "remark1", "remark 1"],
+  misc2: ["misc2", "misc 2", "code2", "code 2", "remark2", "remark 2"],
+  misc3: ["misc3", "misc 3", "code3", "code 3", "remark3", "remark 3"],
+};
+
+const GENETICS_STRUCTURAL_ORDER = [
+  "head",
+  "shoulder",
+  "front_legs",
+  "rear_legs",
+  "feet",
+  "back",
+  "rump",
+  "udder_texture",
+];
+
+const GENETICS_MAJOR_ORDER = ["ga", "ds", "bc", "ms"];
+
 export function registrationFromUrl(url) {
   try {
     const parsed = new URL(url);
@@ -143,19 +178,30 @@ export function parseHeading(heading, registration) {
   return { registered_name: "", sex: "", herdbook: "", notes: "" };
 }
 
+export function titleFromName(name) {
+  const match = collapse(name).match(/^(SGCH|GCH|SG|CH)\b/i);
+  return match ? match[1].toUpperCase() : "";
+}
+
+function applyRegisteredName(row, name) {
+  const cleaned = collapse(name);
+  if (!cleaned) return;
+  row.registered_name = cleaned;
+  const title = titleFromName(cleaned);
+  if (title) row.title = title;
+}
+
 export function parseDobAndAppraisal(text) {
   const blob = collapse(text);
   const dob = blob.match(/DOB:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
   const fs = blob.match(/\bFS\s*(\d{2,3})\b/i);
   const majors = blob.match(/\(([+\-EVGPevgp\s]{2,})\)/);
   const age = blob.match(/@\s*(\d{2}-\d{2})/);
-  const notes = [];
-  if (majors) notes.push(collapse(majors[1]));
-  if (age) notes.push(`age ${age[1]}`);
   return {
     date_of_birth: dob?.[1] ?? "",
     linear_final_score: fs?.[1] ?? "",
-    notes: notes.join(" · "),
+    linear_majors: majors ? collapse(majors[1]) : "",
+    linear_age: age?.[1] ?? "",
   };
 }
 
@@ -171,6 +217,94 @@ export function parsePolled(text) {
   const blob = collapse(text);
   if (/\bpolled\b/i.test(blob) && !/\bispolled\b/i.test(blob)) return "Y";
   return "";
+}
+
+export function parseBlack(text) {
+  const blob = collapse(text);
+  if (/\bblack\b/i.test(blob) && !/\bisblack\b/i.test(blob)) return "Y";
+  return "";
+}
+
+function parseCssColor(value) {
+  const s = collapse(value).toLowerCase();
+  if (!s || s === "transparent" || s === "inherit" || s === "currentcolor") {
+    return null;
+  }
+  const rgb = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgb) {
+    return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
+  }
+  const hex = s.match(/^#([0-9a-f]{3,8})$/);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3 || h.length === 4) {
+      h = [...h].map((ch) => ch + ch).join("");
+    }
+    return {
+      r: Number.parseInt(h.slice(0, 2), 16),
+      g: Number.parseInt(h.slice(2, 4), 16),
+      b: Number.parseInt(h.slice(4, 6), 16),
+    };
+  }
+  const named = {
+    red: { r: 255, g: 0, b: 0 },
+    maroon: { r: 128, g: 0, b: 0 },
+    green: { r: 0, g: 128, b: 0 },
+    lime: { r: 0, g: 255, b: 0 },
+    darkgreen: { r: 0, g: 100, b: 0 },
+    black: { r: 0, g: 0, b: 0 },
+    blue: { r: 0, g: 0, b: 255 },
+    navy: { r: 0, g: 0, b: 128 },
+  };
+  return named[s] ?? null;
+}
+
+function colorKind(rgb) {
+  if (!rgb) return "";
+  const { r, g, b } = rgb;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max - min < 30 && max <= 50) return "black";
+  if (r >= 150 && r > g + 40 && r > b + 40) return "red";
+  if (g >= 100 && g > r + 25 && g >= b) return "green";
+  if (b >= 100 && b >= r && b >= g) return "blue";
+  return "other";
+}
+
+function ignoreBlackCoatColor(links) {
+  const kinds = (links ?? [])
+    .map((link) => colorKind(parseCssColor(link.color)))
+    .filter(Boolean);
+  if (kinds.length === 0) return true;
+  const blacks = kinds.filter((kind) => kind === "black").length;
+  return blacks * 2 >= kinds.length;
+}
+
+function flagsFromLinkStyle(link, skipBlackColor = false) {
+  let polled = "";
+  let black = "";
+  const cls = collapse(link?.className).toLowerCase();
+  if (/\bpolled\b/.test(cls)) polled = "Y";
+  if (/\bblack\b/.test(cls)) black = "Y";
+  const colorKindValue = colorKind(parseCssColor(link?.color));
+  const bgKind = colorKind(parseCssColor(link?.backgroundColor));
+  for (const kind of [colorKindValue, bgKind]) {
+    if (kind === "green") polled = "Y";
+    if (kind === "red") {
+      polled = "Y";
+      black = "Y";
+    }
+  }
+  if (colorKindValue === "black" && !skipBlackColor) black = "Y";
+  return { polled, black };
+}
+
+function pedigreeFlags(link, skipBlackColor = false) {
+  const marks = flagsFromLinkStyle(link, skipBlackColor);
+  return {
+    polled: marks.polled === "Y" ? "Y" : "N",
+    black: marks.black === "Y" ? "Y" : "N",
+  };
 }
 
 export function parseIndexes(text) {
@@ -229,10 +363,31 @@ function looksLikeLinearTraitTable(table) {
 
 function looksLikeStructuralTable(table) {
   const headers = (table?.rows?.[0] ?? []).map((cell) => headerKey(cell));
-  return (
-    headers.includes("layear") &&
-    headers.includes("fs") &&
-    headers.some((h) => h.includes("general appearance") || h === "ga")
+  const hasYear = headers.some((h) => h === "layear" || h === "year");
+  const hasAge = headers.includes("age");
+  const hasStructural =
+    headers.includes("head") ||
+    headers.includes("shoulder assembly") ||
+    headers.includes("udder texture") ||
+    headers.includes("fs") ||
+    headers.some((h) => h.includes("general appearance") || h === "ga");
+  return hasYear && hasAge && hasStructural && !looksLikeLinearTraitTable(table);
+}
+
+function looksLikeMiscTable(table) {
+  if (looksLikeLinearTraitTable(table) || looksLikeStructuralTable(table)) {
+    return false;
+  }
+  const headers = (table?.rows?.[0] ?? []).map((cell) => headerKey(cell));
+  const hasYear = headers.some((h) => h === "layear" || h === "year");
+  const hasAge = headers.includes("age");
+  if (!hasYear || !hasAge) return false;
+  return headers.some(
+    (h) =>
+      /^(misc|code|remark|defect)/.test(h) ||
+      /^misc\s*\d$/.test(h) ||
+      /^code\s*\d$/.test(h) ||
+      h === "codes",
   );
 }
 
@@ -283,6 +438,9 @@ function goatLinks(links) {
       text: stripPedigreeLabel(link.text),
       title: collapse(link.title),
       registration: registrationFromHref(link.href ?? ""),
+      color: link.color ?? "",
+      backgroundColor: link.backgroundColor ?? "",
+      className: link.className ?? "",
     }))
     .filter((link) => link.registration && collapse(link.text).length <= 80);
 }
@@ -307,6 +465,7 @@ function matchLink(segment, links) {
 
 export function parsePedigreeNodes(text, links, tables = []) {
   const goat = goatLinks(links);
+  const skipBlackColor = ignoreBlackCoatColor(goat);
   const nodes = [];
   const seen = new Set();
   const add = (label, link) => {
@@ -314,11 +473,14 @@ export function parsePedigreeNodes(text, links, tables = []) {
     const key = `${label}|${link.registration}`;
     if (seen.has(key)) return;
     seen.add(key);
+    const marks = pedigreeFlags(link, skipBlackColor);
     nodes.push({
       label,
       registration: link.registration,
       name: stripPedigreeLabel(link.text),
       herdbook: herdbookFromTitle(link.title),
+      polled: marks.polled,
+      black: marks.black,
     });
   };
 
@@ -354,11 +516,17 @@ function herdbookFromTitle(title) {
 }
 
 function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
+  const skipBlackColor = ignoreBlackCoatColor(goatLinks(links));
   return goatLinks(links).map((link) => {
+    const marks = pedigreeFlags(link, skipBlackColor);
     const row = emptyIndividual();
     row.registration_number = link.registration;
-    row.registered_name = stripPedigreeLabel(link.text);
+    applyRegisteredName(row, stripPedigreeLabel(link.text));
     row.herdbook = herdbookFromTitle(link.title);
+    row.polled = marks.polled;
+    row.black = marks.black;
+    row.polled_from = "pedigree";
+    row.black_from = "pedigree";
     row.source_url = sourceUrl;
     row.captured_at = capturedAt;
     return row;
@@ -390,18 +558,26 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
     if (!byReg.has(node.registration)) {
       const row = emptyIndividual();
       row.registration_number = node.registration;
-      row.registered_name = node.name;
+      applyRegisteredName(row, node.name);
       row.sex = sexFromPedigreeLabel(node.label);
       row.herdbook = node.herdbook ?? "";
+      row.polled = node.polled ?? "";
+      row.black = node.black ?? "";
+      row.polled_from = "pedigree";
+      row.black_from = "pedigree";
       row.source_url = sourceUrl;
       row.captured_at = capturedAt;
       byReg.set(node.registration, row);
     } else {
       const existing = byReg.get(node.registration);
       if (node.name && !existing.registered_name) {
-        existing.registered_name = node.name;
+        applyRegisteredName(existing, node.name);
       }
       if (!existing.sex) existing.sex = sexFromPedigreeLabel(node.label);
+      if (node.polled === "Y" || !existing.polled) existing.polled = node.polled;
+      if (node.black === "Y" || !existing.black) existing.black = node.black;
+      existing.polled_from = "pedigree";
+      existing.black_from = "pedigree";
     }
   }
   for (const node of nodes) {
@@ -416,16 +592,20 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
   return [...byReg.values()];
 }
 
-function mapTraitHeaders(headers) {
+function mapHeaderAliases(headers, aliases) {
   const map = {};
   headers.forEach((cell, index) => {
     const h = headerKey(cell);
-    for (const [key, aliases] of Object.entries(TRAIT_HEADER_ALIASES)) {
+    for (const [key, names] of Object.entries(aliases)) {
       if (map[key] != null) continue;
-      if (aliases.some((alias) => h === alias)) map[key] = index;
+      if (names.some((alias) => h === alias)) map[key] = index;
     }
   });
   return map;
+}
+
+function mapTraitHeaders(headers) {
+  return mapHeaderAliases(headers, TRAIT_HEADER_ALIASES);
 }
 
 function sexFromCell(value) {
@@ -460,6 +640,7 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
     const sexI = headerIndex(headers, "sex");
     const dobI = headerIndex(headers, "dob");
     const polledI = headerIndex(headers, "ispolled", "polled");
+    const blackI = headerIndex(headers, "isblack", "black");
     for (const cells of rows.slice(1)) {
       const name = collapse(cells[nameI]);
       const registration = collapse(cells[regI]);
@@ -468,12 +649,15 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
       }
       const row = emptyIndividual();
       row.registration_number = registration;
-      row.registered_name = name;
+      applyRegisteredName(row, name);
       row.herdbook = bookI >= 0 ? collapse(cells[bookI]) : "";
       row.breed = breedI >= 0 ? collapse(cells[breedI]) : "";
       row.sex = sexI >= 0 ? sexFromCell(cells[sexI]) : "";
       row.date_of_birth = dobI >= 0 ? collapse(cells[dobI]) : "";
-      row.polled = polledI >= 0 ? polledFromCell(cells[polledI]) : "";
+      row.polled = polledI >= 0 ? polledFromCell(cells[polledI]) || "N" : "";
+      row.black = blackI >= 0 ? polledFromCell(cells[blackI]) || "N" : "";
+      if (polledI >= 0) row.polled_from = "progeny";
+      if (blackI >= 0) row.black_from = "progeny";
       if (current.sex === "BUCK") row.sire_registration = current.registration_number;
       if (current.sex === "DOE") row.dam_registration = current.registration_number;
       row.source_url = sourceUrl;
@@ -500,78 +684,164 @@ function linearFromScoreRow(registration, year, age, scores, extras, capturedAt,
   return row;
 }
 
+function linearRowKey(year, age) {
+  return `${year}|${age}`;
+}
+
+function ensureLinearRow(byKey, registration, year, age, capturedAt, sourceUrl) {
+  const key = linearRowKey(year, age);
+  if (!byKey.has(key)) {
+    const row = emptyLinear();
+    row.registration_number = registration;
+    row.appraisal_date = year;
+    row.age = age;
+    row.source_url = sourceUrl;
+    row.captured_at = capturedAt;
+    byKey.set(key, row);
+  }
+  return byKey.get(key);
+}
+
+function applyCategoryLetters(row, letters) {
+  GENETICS_STRUCTURAL_ORDER.forEach((key, index) => {
+    if (letters[index]) row[key] = letters[index];
+  });
+  GENETICS_MAJOR_ORDER.forEach((key, index) => {
+    if (letters[8 + index]) row[key] = letters[8 + index];
+  });
+}
+
+function applyMappedCells(row, cells, map) {
+  for (const [key, index] of Object.entries(map)) {
+    const value = collapse(cells[index]);
+    if (value) row[key] = value;
+  }
+}
+
+function parseMiscCodes(value) {
+  return (collapse(value).match(/\b\d{1,2}\b/g) ?? []).slice(0, 3);
+}
+
+function applyMiscCodes(row, codes) {
+  ["misc1", "misc2", "misc3"].forEach((key, index) => {
+    if (codes[index]) row[key] = codes[index];
+  });
+}
+
 function extractLinearFromTables(tables, registration, capturedAt, sourceUrl) {
-  const linear = [];
-  const majorsByKey = new Map();
+  const byKey = new Map();
   for (const table of tables ?? []) {
     const rows = table.rows ?? [];
-    if (looksLikeStructuralTable(table)) {
-      const headers = rows[0].map((cell) => collapse(cell));
-      const yearI = headerIndex(headers, "layear", "year");
-      const ageI = headerIndex(headers, "age");
-      const fsI = headerIndex(headers, "fs");
-      const gaI = headerIndex(headers, "general appearance");
-      const dsI = headerIndex(headers, "dairy strength");
-      const bcI = headerIndex(headers, "body capacity");
-      const msI = headerIndex(headers, "mammary system");
-      for (const cells of rows.slice(1)) {
-        const year = yearI >= 0 ? collapse(cells[yearI]) : "";
-        const age = ageI >= 0 ? collapse(cells[ageI]) : "";
-        if (!/^\d{4}$/.test(year)) continue;
-        majorsByKey.set(`${year}|${age}`, {
-          final_score: fsI >= 0 ? collapse(cells[fsI]) : "",
-          majors: [gaI, dsI, bcI, msI]
-            .map((index) => (index >= 0 ? collapse(cells[index]) : ""))
-            .filter(Boolean)
-            .join(""),
-        });
-      }
-      continue;
-    }
-    if (!looksLikeLinearTraitTable(table)) continue;
+    if (rows.length < 2) continue;
     const headers = rows[0].map((cell) => collapse(cell));
     const yearI = headerIndex(headers, "layear", "year");
     const ageI = headerIndex(headers, "age");
-    const traits = mapTraitHeaders(headers);
-    const rusvI = headerIndex(headers, "rear udder side view");
-    for (const cells of rows.slice(1)) {
-      const year = yearI >= 0 ? collapse(cells[yearI]) : "";
-      const age = ageI >= 0 ? collapse(cells[ageI]) : "";
-      if (!/^\d{4}$/.test(year) || !/^\d{2}-\d{2}$/.test(age)) continue;
-      const scores = GENETICS_LINEAR_ORDER.map((key) =>
-        traits[key] != null ? collapse(cells[traits[key]]) : "",
-      );
-      if (scores.filter(isScore).length < 8) continue;
-      const extras = [];
-      if (rusvI >= 0) extras.push(`rusv=${collapse(cells[rusvI])}`);
-      linear.push(
-        linearFromScoreRow(registration, year, age, scores, extras, capturedAt, sourceUrl),
-      );
+    if (yearI < 0 || ageI < 0) continue;
+
+    if (looksLikeLinearTraitTable(table)) {
+      const traits = mapTraitHeaders(headers);
+      const rusvI = headerIndex(headers, "rear udder side view");
+      for (const cells of rows.slice(1)) {
+        const year = collapse(cells[yearI]);
+        const age = collapse(cells[ageI]);
+        if (!/^\d{4}$/.test(year) || !/^\d{2}-\d{2}$/.test(age)) continue;
+        const scores = GENETICS_LINEAR_ORDER.map((key) =>
+          traits[key] != null ? collapse(cells[traits[key]]) : "",
+        );
+        if (scores.filter(isScore).length < 8) continue;
+        const extras = [];
+        if (rusvI >= 0) extras.push(`rusv=${collapse(cells[rusvI])}`);
+        const row = linearFromScoreRow(
+          registration,
+          year,
+          age,
+          scores,
+          extras,
+          capturedAt,
+          sourceUrl,
+        );
+        const existing = byKey.get(linearRowKey(year, age));
+        if (existing) {
+          GENETICS_LINEAR_ORDER.forEach((key) => {
+            if (row[key]) existing[key] = row[key];
+          });
+          if (row.rusv) existing.rusv = row.rusv;
+        } else {
+          byKey.set(linearRowKey(year, age), row);
+        }
+      }
+      continue;
+    }
+
+    if (looksLikeStructuralTable(table)) {
+      const mapped = mapHeaderAliases(headers, STRUCTURAL_HEADER_ALIASES);
+      const fsI = headerIndex(headers, "fs");
+      for (const cells of rows.slice(1)) {
+        const year = collapse(cells[yearI]);
+        const age = collapse(cells[ageI]);
+        if (!/^\d{4}$/.test(year)) continue;
+        const row = ensureLinearRow(
+          byKey,
+          registration,
+          year,
+          age,
+          capturedAt,
+          sourceUrl,
+        );
+        applyMappedCells(row, cells, mapped);
+        if (fsI >= 0) {
+          const fs = collapse(cells[fsI]);
+          if (fs) row.final_score = fs;
+        }
+      }
+      continue;
+    }
+
+    if (looksLikeMiscTable(table)) {
+      const mapped = mapHeaderAliases(headers, MISC_HEADER_ALIASES);
+      const codesI = headerIndex(headers, "codes", "code", "misc", "remarks");
+      for (const cells of rows.slice(1)) {
+        const year = collapse(cells[yearI]);
+        const age = collapse(cells[ageI]);
+        if (!/^\d{4}$/.test(year)) continue;
+        const row = ensureLinearRow(
+          byKey,
+          registration,
+          year,
+          age,
+          capturedAt,
+          sourceUrl,
+        );
+        applyMappedCells(row, cells, mapped);
+        if (!row.misc1 && codesI >= 0) {
+          applyMiscCodes(row, parseMiscCodes(cells[codesI]));
+        }
+        if (!row.misc1) {
+          const leftover = cells
+            .map((cell, index) => (index === yearI || index === ageI ? "" : collapse(cell)))
+            .filter(Boolean)
+            .join(" ");
+          applyMiscCodes(row, parseMiscCodes(leftover));
+        }
+      }
     }
   }
-  for (const row of linear) {
-    const extra = majorsByKey.get(`${row.appraisal_date}|${row.age}`);
-    if (!extra) continue;
-    row.final_score = extra.final_score;
-    row.majors = extra.majors;
-  }
-  return linear;
+  return [...byKey.values()];
 }
 
 export function extractLinearFromText(text, registration, capturedAt, sourceUrl) {
   const blob = String(text ?? "").replace(/\u00a0/g, " ");
   const block = blob.match(
-    /Linear Traits[\s\S]*?LAYear\s+Age\s+Stature[\s\S]*?(?=Structural Traits|The data listed|$)/i,
+    /Linear Traits[\s\S]*?LAYear\s+Age\s+Stature[\s\S]*?(?=Structural Traits|Miscellaneous|The data listed|$)/i,
   );
-  if (!block) return [];
-  const linear = [];
-  const rowRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:\d+\s+){14}\d+(?:\s+\d+)?)/g;
-  let match;
-  while ((match = rowRe.exec(block[0]))) {
-    const scores = collapse(match[3]).split(" ").filter(Boolean);
-    if (scores.filter(isScore).length < 8) continue;
-    linear.push(
-      linearFromScoreRow(
+  const byKey = new Map();
+  if (block) {
+    const rowRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:\d+\s+){14}\d+(?:\s+\d+)?)/g;
+    let match;
+    while ((match = rowRe.exec(block[0]))) {
+      const scores = collapse(match[3]).split(" ").filter(Boolean);
+      if (scores.filter(isScore).length < 8) continue;
+      const row = linearFromScoreRow(
         registration,
         match[1],
         match[2],
@@ -579,26 +849,50 @@ export function extractLinearFromText(text, registration, capturedAt, sourceUrl)
         [],
         capturedAt,
         sourceUrl,
-      ),
-    );
-  }
-  const structural = blob.match(
-    /Structural Traits[\s\S]*?LAYear\s+Age[\s\S]*?(?=Pedigree|PTI21|$)/i,
-  );
-  if (structural) {
-    const structRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:[A-Z]\s+)+)(\d{2,3})/g;
-    let sm;
-    while ((sm = structRe.exec(structural[0]))) {
-      const letters = collapse(sm[3]).split(" ");
-      const row = linear.find(
-        (item) => item.appraisal_date === sm[1] && item.age === sm[2],
       );
-      if (!row) continue;
-      row.final_score = sm[4];
-      row.majors = letters.slice(-4).join("");
+      byKey.set(linearRowKey(match[1], match[2]), row);
     }
   }
-  return linear;
+  const structural = blob.match(
+    /Structural Traits[\s\S]*?LAYear\s+Age[\s\S]*?(?=Miscellaneous|Pedigree|PTI21|$)/i,
+  );
+  if (structural) {
+    const structRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:[A-Z]\s+)+)(\d{2,3})?/g;
+    let sm;
+    while ((sm = structRe.exec(structural[0]))) {
+      const letters = collapse(sm[3]).split(/\s+/).filter((item) => /^[A-Z]$/i.test(item));
+      if (letters.length < 4) continue;
+      const row = ensureLinearRow(
+        byKey,
+        registration,
+        sm[1],
+        sm[2],
+        capturedAt,
+        sourceUrl,
+      );
+      applyCategoryLetters(row, letters);
+      if (sm[4]) row.final_score = sm[4];
+    }
+  }
+  const misc = blob.match(
+    /Miscellaneous(?:\s+Codes)?[\s\S]*?(?=Pedigree|PTI21|Linear Traits|Structural Traits|$)/i,
+  );
+  if (misc) {
+    const miscRe = /(\d{4})\s+(\d{2}-\d{2})\s+((?:\d{1,2}\b\s*){1,3})/g;
+    let mm;
+    while ((mm = miscRe.exec(misc[0]))) {
+      const row = ensureLinearRow(
+        byKey,
+        registration,
+        mm[1],
+        mm[2],
+        capturedAt,
+        sourceUrl,
+      );
+      applyMiscCodes(row, parseMiscCodes(mm[3]));
+    }
+  }
+  return [...byKey.values()];
 }
 
 export function extractLinearRows(tables, registration, capturedAt, sourceUrl, text = "") {
@@ -634,17 +928,32 @@ function subjectFromPage(page, registration, capturedAt) {
   const breed = parseBreedPercent(page.text);
   const row = emptyIndividual();
   row.registration_number = registration;
-  row.registered_name = heading.registered_name;
+  applyRegisteredName(row, heading.registered_name);
   row.sex = heading.sex;
   row.herdbook = heading.herdbook;
   row.breed = breed.breed;
   row.breed_percent = breed.breed_percent;
-  row.polled = parsePolled(heading.notes);
+  row.polled = parsePolled(heading.notes) || parsePolled(page.title ?? "");
+  row.black = parseBlack(heading.notes) || parseBlack(page.title ?? "");
+  const self = goatLinks(page.links).find(
+    (link) => identityKey(link.registration) === identityKey(registration),
+  );
+  if (self) {
+    const marks = flagsFromLinkStyle(self, ignoreBlackCoatColor(goatLinks(page.links)));
+    if (marks.polled) row.polled = marks.polled;
+    if (marks.black) row.black = marks.black;
+  }
+  if (row.polled !== "Y") row.polled = "N";
+  if (row.black !== "Y") row.black = "N";
+  row.polled_from = "identity";
+  row.black_from = "identity";
   row.date_of_birth = dob.date_of_birth;
   row.linear_final_score = dob.linear_final_score;
+  row.linear_majors = dob.linear_majors;
+  row.linear_age = dob.linear_age;
   row.source_url = page.url ?? "";
   row.captured_at = capturedAt;
-  row.notes = [heading.notes, dob.notes].filter(Boolean).join(" · ");
+  row.notes = heading.notes;
   return row;
 }
 
@@ -712,6 +1021,11 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
     if (pti) batch.pti.push(pti);
     batch.ptiComplete = true;
   }
+  const named = subject.registered_name;
+  if (named) {
+    for (const row of batch.linear) row.registered_name = named;
+    for (const row of batch.pti) row.registered_name = named;
+  }
   return convertBatch(batch, subject.herdbook);
 }
 
@@ -774,13 +1088,48 @@ function tableFromElement(table) {
   return { rows };
 }
 
+function elementAppearance(el) {
+  const classes = [];
+  let color = "";
+  let backgroundColor = "";
+  let node = el;
+  for (let depth = 0; depth < 4 && node && node.nodeType === 1; depth += 1) {
+    classes.push(String(node.className ?? ""));
+    const attrColor = node.getAttribute?.("color") || node.style?.color;
+    if (attrColor && !color) color = attrColor;
+    const attrBg = node.style?.backgroundColor;
+    if (attrBg && !backgroundColor) backgroundColor = attrBg;
+    node = node.parentElement;
+  }
+  if (el && typeof getComputedStyle === "function") {
+    try {
+      const style = getComputedStyle(el);
+      if (!color) color = style.color ?? "";
+      if (!backgroundColor) backgroundColor = style.backgroundColor ?? "";
+    } catch {
+      /* jsdom / detached */
+    }
+  }
+  return {
+    color,
+    backgroundColor,
+    className: classes.filter(Boolean).join(" "),
+  };
+}
+
 export function snapshotFromDocument(doc, url) {
-  const links = [...doc.querySelectorAll("a")].map((anchor) => ({
-    href: anchor.href,
-    text: collapse(anchor.textContent),
-    title: collapse(anchor.getAttribute("title") ?? anchor.title ?? ""),
-    onclick: collapse(anchor.getAttribute("onclick") ?? ""),
-  }));
+  const links = [...doc.querySelectorAll("a")].map((anchor) => {
+    const look = elementAppearance(anchor);
+    return {
+      href: anchor.href,
+      text: collapse(anchor.textContent),
+      title: collapse(anchor.getAttribute("title") ?? anchor.title ?? ""),
+      onclick: collapse(anchor.getAttribute("onclick") ?? ""),
+      color: look.color,
+      backgroundColor: look.backgroundColor,
+      className: look.className,
+    };
+  });
   const selected =
     doc.querySelector("[aria-current='page'], .selected, .Selected, .active") ??
     null;

@@ -4,13 +4,16 @@ import {
   detectView,
   extractFromSnapshot,
   parseBreedPercent,
+  parseDobAndAppraisal,
   parseHeading,
   parsePedigreeNodes,
   registrationFromUrl,
+  titleFromName,
 } from "../extension/extract.js";
 import {
   emptyStore,
   LINEAR_COLUMNS,
+  PTI_COLUMNS,
   INDIVIDUAL_COLUMNS,
   isIndividualComplete,
   scrapeStatus,
@@ -182,6 +185,30 @@ describe("parseHeading", () => {
   });
 });
 
+describe("titleFromName", () => {
+  it("reads SGCH before SG, and GCH before CH", () => {
+    assert.equal(titleFromName("SGCH SOME SIRE"), "SGCH");
+    assert.equal(titleFromName("SG ALDER*GLEN TRES BONNE 3*M"), "SG");
+    assert.equal(titleFromName("GCH A DOE"), "GCH");
+    assert.equal(titleFromName("CH A BUCK"), "CH");
+    assert.equal(titleFromName("TWIN WILLOWS AL KARAMELLO"), "");
+  });
+});
+
+describe("parseDobAndAppraisal", () => {
+  it("splits FS, condensed majors, and age from the identity pane", () => {
+    assert.deepEqual(
+      parseDobAndAppraisal("DOB: 3/20/2020 FS84 (+V++) @ 01-03"),
+      {
+        date_of_birth: "3/20/2020",
+        linear_final_score: "84",
+        linear_majors: "+V++",
+        linear_age: "01-03",
+      },
+    );
+  });
+});
+
 describe("parseBreedPercent", () => {
   it("splits percent and breed letter", () => {
     assert.deepEqual(parseBreedPercent("Breed Percent: 100% N"), {
@@ -198,6 +225,35 @@ describe("parsePedigreeNodes", () => {
     assert.deepEqual(labels, ["S", "D", "SS", "SD"]);
     assert.equal(nodes[0].registration, "N001201234");
     assert.equal(nodes[2].name, "SGCH SOME SIRE");
+  });
+
+  it("reads polled and black from pedigree name colors", () => {
+    const nodes = parsePedigreeNodes(PEDIGREE_TEXT, [
+      { ...PEDIGREE_LINKS[0], color: "rgb(0, 128, 0)" },
+      { ...PEDIGREE_LINKS[1], color: "red" },
+      { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 238)" },
+      { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 0)" },
+    ]);
+    const byLabel = Object.fromEntries(nodes.map((node) => [node.label, node]));
+    assert.equal(byLabel.S.polled, "Y");
+    assert.equal(byLabel.S.black, "N");
+    assert.equal(byLabel.D.polled, "Y");
+    assert.equal(byLabel.D.black, "Y");
+    assert.equal(byLabel.SS.polled, "N");
+    assert.equal(byLabel.SS.black, "N");
+    assert.equal(byLabel.SD.polled, "N");
+    assert.equal(byLabel.SD.black, "Y");
+  });
+
+  it("does not treat default black link text as black coat", () => {
+    const nodes = parsePedigreeNodes(PEDIGREE_TEXT, [
+      { ...PEDIGREE_LINKS[0], color: "rgb(0, 0, 0)" },
+      { ...PEDIGREE_LINKS[1], color: "rgb(0, 0, 0)" },
+      { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 0)" },
+      { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 0)" },
+    ]);
+    assert.equal(nodes.every((node) => node.polled === "N"), true);
+    assert.equal(nodes.every((node) => node.black === "N"), true);
   });
 
   it("strips UI labels from link text", () => {
@@ -251,13 +307,18 @@ describe("extractFromSnapshot pedigree", () => {
       batch.individuals.map((row) => [row.registration_number, row]),
     );
     assert.equal(byReg.PN1352104.registered_name, "SG ALDER*GLEN TRES BONNE 3*M");
+    assert.equal(byReg.PN1352104.title, "SG");
     assert.equal(byReg.PN1352104.sex, "DOE");
     assert.equal(byReg.PN1352104.breed, "N");
     assert.equal(byReg.PN1352104.breed_percent, "100");
+    assert.equal(byReg.PN1352104.linear_final_score, "84");
+    assert.equal(byReg.PN1352104.linear_majors, "+V++");
+    assert.equal(byReg.PN1352104.linear_age, "01-03");
     assert.equal(byReg.PN1352104.sire_registration, "N1201234");
     assert.equal(byReg.PN1352104.dam_registration, "N1198765");
     assert.equal(byReg.PN1352104.sire_name, undefined);
     assert.equal(byReg.N1201234.registered_name, "SGCH ALDER*GLEN TRES LECHES 5*M");
+    assert.equal(byReg.N1201234.title, "SGCH");
     assert.equal(byReg.N1201234.sex, "BUCK");
     assert.equal(byReg.N1201234.sire_registration, "N111111");
     assert.equal(byReg.N1201234.dam_registration, "N222222");
@@ -266,15 +327,77 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(byReg.N111111.sex, "BUCK");
     assert.equal(byReg.N111111.sire_registration, "");
     assert.equal(byReg.N222222.sex, "DOE");
+    assert.equal(byReg.PN1352104.polled, "N");
+    assert.equal(byReg.PN1352104.black, "N");
+    assert.equal(byReg.N1201234.polled, "N");
+    assert.equal(byReg.N1201234.black, "N");
     assert.equal(isIndividualComplete(byReg.PN1352104), true);
     assert.equal(isIndividualComplete(byReg.N1201234), false);
     assert.equal(batch.pti.length, 1);
     assert.equal(batch.pti[0].pti21, "142");
+    assert.equal(batch.pti[0].registered_name, "SG ALDER*GLEN TRES BONNE 3*M");
     assert.equal(batch.pti[0].pti12, "12");
     assert.equal(batch.pti[0].eta21, "8");
     assert.equal(batch.pti[0].eta12, "4");
     assert.equal(batch.ptiComplete, true);
     assert.equal(batch.linearComplete, false);
+  });
+
+  it("copies pedigree color marks onto ancestor rows", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT.replace("(PB Doe)", "(PB Doe Polled)"),
+        links: [
+          { ...PEDIGREE_LINKS[0], color: "green" },
+          { ...PEDIGREE_LINKS[1], color: "rgb(0, 0, 238)" },
+          { ...PEDIGREE_LINKS[2], className: "black" },
+          { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 238)" },
+        ],
+      },
+      "t",
+      { captureAncestry: true },
+    );
+    const byReg = Object.fromEntries(
+      batch.individuals.map((row) => [row.registration_number, row]),
+    );
+    assert.equal(byReg.PN1352104.polled, "Y");
+    assert.equal(byReg.PN1352104.black, "N");
+    assert.equal(byReg.PN1352104.polled_from, "identity");
+    assert.equal(byReg.PN1352104.black_from, "identity");
+    assert.equal(byReg.N1201234.polled, "Y");
+    assert.equal(byReg.N1201234.black, "N");
+    assert.equal(byReg.N1201234.polled_from, "pedigree");
+    assert.equal(byReg.N111111.polled, "N");
+    assert.equal(byReg.N111111.black, "Y");
+    assert.equal(byReg.N1198765.polled, "N");
+    assert.equal(byReg.N1198765.black, "N");
+  });
+
+  it("does not copy pedigree name colors onto the open animal", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        text: PEDIGREE_TEXT,
+        links: [
+          { ...PEDIGREE_LINKS[0], color: "green" },
+          { ...PEDIGREE_LINKS[1], color: "rgb(0, 0, 238)" },
+          { ...PEDIGREE_LINKS[2], color: "rgb(0, 0, 238)" },
+          { ...PEDIGREE_LINKS[3], color: "rgb(0, 0, 238)" },
+        ],
+      },
+      "t",
+      { captureAncestry: true },
+    );
+    const byReg = Object.fromEntries(
+      batch.individuals.map((row) => [row.registration_number, row]),
+    );
+    assert.equal(byReg.PN1352104.polled, "N");
+    assert.equal(byReg.PN1352104.polled_from, "identity");
+    assert.equal(byReg.N1201234.polled, "Y");
+    assert.equal(byReg.N1201234.polled_from, "pedigree");
   });
 
   it("returns null when the URL is not a goat detail page", () => {
@@ -394,8 +517,8 @@ describe("extractFromSnapshot progeny", () => {
         tables: [
           {
             rows: [
-              ["Name", "Reg #", "Herdbook", "Breed", "Sex", "DOB", "IsPolled"],
-              ["KID ONE", "N000333333", "PB", "N", "F", "1/2/2024", "Y"],
+              ["Name", "Reg #", "Herdbook", "Breed", "Sex", "DOB", "IsPolled", "IsBlack"],
+              ["KID ONE", "N000333333", "PB", "N", "F", "1/2/2024", "Y", "Y"],
             ],
           },
         ],
@@ -407,6 +530,9 @@ describe("extractFromSnapshot progeny", () => {
     assert.equal(kid.dam_registration, "PN1352104");
     assert.equal(kid.sire_registration, "");
     assert.equal(kid.polled, "Y");
+    assert.equal(kid.black, "Y");
+    assert.equal(kid.polled_from, "progeny");
+    assert.equal(kid.black_from, "progeny");
     assert.equal(isIndividualComplete(kid), false);
   });
 
@@ -450,6 +576,9 @@ describe("extractFromSnapshot linear", () => {
     Structural Traits
     LAYear Age Head Shoulder Assembly Front Legs Rear Legs Feet Back Rump Udder Texture General Appearance Dairy Strength Body Capacity Mammary System FS
     2025 03-02 V G A G V E V V V E A 84
+    Miscellaneous Codes
+    LAYear Age Code1 Code2 Code3
+    2025 03-02 32 14
   `;
 
   it("reads Genetics Linear History rows and ignores Type Eval soup", () => {
@@ -475,6 +604,7 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linearComplete, true);
     assert.equal(batch.ptiComplete, true);
     assert.equal(batch.linear.length, 2);
+    assert.equal(batch.linear[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     assert.equal(batch.linear[0].appraisal_date, "2024");
     assert.equal(batch.linear[0].stat, "28");
     assert.equal(batch.linear[0].st, "30");
@@ -482,8 +612,21 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linear[1].appraisal_date, "2025");
     assert.equal(batch.linear[1].age, "03-02");
     assert.equal(batch.linear[1].final_score, "84");
-    assert.equal(batch.linear[1].majors, "VVEA");
+    assert.equal(batch.linear[1].head, "V");
+    assert.equal(batch.linear[1].shoulder, "G");
+    assert.equal(batch.linear[1].front_legs, "A");
+    assert.equal(batch.linear[1].rear_legs, "G");
+    assert.equal(batch.linear[1].feet, "V");
+    assert.equal(batch.linear[1].back, "E");
+    assert.equal(batch.linear[1].rump, "V");
+    assert.equal(batch.linear[1].udder_texture, "V");
+    assert.equal(batch.linear[1].ga, "V");
+    assert.equal(batch.linear[1].ds, "E");
+    assert.equal(batch.linear[1].bc, "A");
+    assert.equal(batch.linear[1].misc1, "32");
+    assert.equal(batch.linear[1].misc2, "14");
     assert.equal(batch.pti.length, 1);
+    assert.equal(batch.pti[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     assert.equal(batch.pti[0].pti21, "40");
     assert.equal(batch.pti[0].eta12, "29");
   });
@@ -517,6 +660,8 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.individuals.length, 0);
     assert.equal(batch.linear.length, 2);
     assert.equal(batch.pti.length, 1);
+    assert.equal(batch.linear[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
+    assert.equal(batch.pti[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     assert.equal(batch.pti[0].pti21, "40");
   });
 
@@ -543,6 +688,112 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.view, "type_eval");
     assert.equal(batch.linear.length, 0);
     assert.equal(batch.pti[0].pti21, "40");
+  });
+
+  it("reads structural letters and misc codes from Linear History tables", () => {
+    const batch = extractFromSnapshot({
+      url: SAMPLE_URL,
+      eventArgument: "LinearHistory",
+      text: "Appraisal History For: TWIN WILLOWS AL KARAMELLO - N001352104 (PB Doe)",
+      tables: [
+        {
+          rows: [
+            [
+              "LAYear",
+              "Age",
+              "Stature",
+              "Strength",
+              "Dairyness",
+              "Rump Angle",
+              "Rump Width",
+              "Rear Leg Side View",
+              "Fore Udder Attachment",
+              "Rear Udder Height",
+              "Rear Udder Arch",
+              "Medial",
+              "Udder Depth",
+              "Teat Placement",
+              "Teat Diameter",
+              "Teat Length",
+              "Body Depth",
+              "Rear Udder Side View",
+            ],
+            [
+              "2025",
+              "03-02",
+              "32",
+              "34",
+              "32",
+              "37",
+              "33",
+              "33",
+              "31",
+              "30",
+              "36",
+              "14",
+              "34",
+              "21",
+              "10",
+              "37",
+              "40",
+              "1",
+            ],
+          ],
+        },
+        {
+          rows: [
+            [
+              "LAYear",
+              "Age",
+              "Head",
+              "Shoulder Assembly",
+              "Front Legs",
+              "Rear Legs",
+              "Feet",
+              "Back",
+              "Rump",
+              "Udder Texture",
+              "General Appearance",
+              "Dairy Strength",
+              "Body Capacity",
+              "Mammary System",
+              "FS",
+            ],
+            [
+              "2025",
+              "03-02",
+              "V",
+              "G",
+              "A",
+              "G",
+              "V",
+              "E",
+              "V",
+              "V",
+              "V",
+              "E",
+              "A",
+              "V",
+              "84",
+            ],
+          ],
+        },
+        {
+          rows: [
+            ["LAYear", "Age", "Code1", "Code2", "Code3"],
+            ["2025", "03-02", "32", "14", ""],
+          ],
+        },
+      ],
+    });
+    assert.equal(batch.linear.length, 1);
+    assert.equal(batch.linear[0].stat, "32");
+    assert.equal(batch.linear[0].head, "V");
+    assert.equal(batch.linear[0].udder_texture, "V");
+    assert.equal(batch.linear[0].ms, "V");
+    assert.equal(batch.linear[0].final_score, "84");
+    assert.equal(batch.linear[0].misc1, "32");
+    assert.equal(batch.linear[0].misc2, "14");
   });
 });
 
@@ -643,6 +894,63 @@ describe("merge", () => {
     assert.equal(second.individuals.N1.breed, "N");
   });
 
+  it("lets an identity page overwrite pedigree name colors", () => {
+    const first = mergeBatch(emptyStore(), {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "Y",
+          black: "Y",
+          polled_from: "pedigree",
+          black_from: "pedigree",
+        },
+      ],
+    });
+    const second = mergeBatch(first, {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "N",
+          black: "N",
+          polled_from: "identity",
+          black_from: "identity",
+        },
+      ],
+    });
+    assert.equal(second.individuals.N1.polled, "N");
+    assert.equal(second.individuals.N1.black, "N");
+    assert.equal(second.individuals.N1.polled_from, "identity");
+  });
+
+  it("does not let pedigree name colors overwrite an identity page", () => {
+    const first = mergeBatch(emptyStore(), {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "Y",
+          black: "N",
+          polled_from: "identity",
+          black_from: "identity",
+        },
+      ],
+    });
+    const second = mergeBatch(first, {
+      individuals: [
+        {
+          registration_number: "N1",
+          polled: "N",
+          black: "Y",
+          polled_from: "pedigree",
+          black_from: "pedigree",
+        },
+      ],
+    });
+    assert.equal(second.individuals.N1.polled, "Y");
+    assert.equal(second.individuals.N1.black, "N");
+    assert.equal(second.individuals.N1.polled_from, "identity");
+    assert.equal(second.individuals.N1.black_from, "identity");
+  });
+
   it("removes one animal without touching LA or PTI", () => {
     const store = mergeBatch(emptyStore(), {
       individuals: [
@@ -734,10 +1042,18 @@ describe("csv zip", () => {
       [{ registration_number: "N1", registered_name: "Name, with comma" }],
       INDIVIDUAL_COLUMNS,
     );
-    assert.match(csv, /^registration_number,registered_name,breed,/);
+    assert.match(csv, /^registration_number,registered_name,title,breed,/);
     assert.equal(
-      LINEAR_COLUMNS.slice(3, 19).join(","),
-      "stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv",
+      LINEAR_COLUMNS.slice(0, 4).join(","),
+      "registration_number,registered_name,appraisal_date,age",
+    );
+    assert.equal(
+      LINEAR_COLUMNS.slice(4, -3).join(","),
+      "stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3",
+    );
+    assert.equal(
+      PTI_COLUMNS.slice(0, 2).join(","),
+      "registration_number,registered_name",
     );
     assert.match(csv, /"Name, with comma"/);
     const files = storeToZipFiles({
@@ -749,6 +1065,22 @@ describe("csv zip", () => {
       files.map((f) => f.name),
       ["individuals.csv", "linear_appraisals.csv", "pti.csv"],
     );
+  });
+
+  it("fills LA and PTI registered_name from the individual row", () => {
+    const files = storeToZipFiles({
+      individuals: [
+        { registration_number: "PN1352104", registered_name: "SG ALDER*GLEN TRES BONNE 3*M" },
+      ],
+      linear: [{ registration_number: "PN1352104", appraisal_date: "2025", age: "03-02" }],
+      pti: [{ registration_number: "PN1352104", pti21: "142" }],
+    });
+    const linear = files.find((file) => file.name === "linear_appraisals.csv").text;
+    const pti = files.find((file) => file.name === "pti.csv").text;
+    assert.match(linear, /^registration_number,registered_name,appraisal_date,/);
+    assert.match(linear, /PN1352104,SG ALDER\*GLEN TRES BONNE 3\*M,2025/);
+    assert.match(pti, /^registration_number,registered_name,pti21,/);
+    assert.match(pti, /PN1352104,SG ALDER\*GLEN TRES BONNE 3\*M,142/);
   });
 
   it("names the download with a local timestamp", () => {

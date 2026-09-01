@@ -3,13 +3,17 @@
 export const INDIVIDUAL_COLUMNS = [
   "registration_number",
   "registered_name",
+  "title",
   "breed",
   "breed_percent",
   "herdbook",
   "polled",
+  "black",
   "sex",
   "date_of_birth",
   "linear_final_score",
+  "linear_majors",
+  "linear_age",
   "sire_registration",
   "dam_registration",
   "source_url",
@@ -19,7 +23,7 @@ export const INDIVIDUAL_COLUMNS = [
 
 /**
  * GoatDetail identity pane — filled by visiting that animal, not by a
- * pedigree/progeny stub. Polled, FS, sire/dam, PTI, and LA are optional.
+ * pedigree/progeny stub. Polled, black, title, FS, majors, age, sire/dam, PTI, and LA are optional.
  */
 export const INDIVIDUAL_IDENTITY_FIELDS = [
   "registered_name",
@@ -65,9 +69,10 @@ export function compareIndividuals(a, b) {
   );
 }
 
-/** Same left-to-right order as ADGA Genetics Linear History. */
+/** Same groups as Genetics Linear History / LA reports. */
 export const LINEAR_COLUMNS = [
   "registration_number",
+  "registered_name",
   "appraisal_date",
   "age",
   "stat",
@@ -86,8 +91,22 @@ export const LINEAR_COLUMNS = [
   "tl",
   "bd",
   "rusv",
+  "head",
+  "shoulder",
+  "front_legs",
+  "rear_legs",
+  "feet",
+  "back",
+  "rump",
+  "udder_texture",
+  "ga",
+  "ds",
+  "bc",
+  "ms",
   "final_score",
-  "majors",
+  "misc1",
+  "misc2",
+  "misc3",
   "source_url",
   "captured_at",
   "notes",
@@ -114,6 +133,7 @@ export const LA_TRAIT_KEYS = [
 
 export const PTI_COLUMNS = [
   "registration_number",
+  "registered_name",
   "pti21",
   "pti12",
   "eta21",
