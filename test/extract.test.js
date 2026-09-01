@@ -589,7 +589,6 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linear[1].ga, "V");
     assert.equal(batch.linear[1].ds, "E");
     assert.equal(batch.linear[1].bc, "A");
-    assert.equal(batch.linear[1].majors, "VEA");
     assert.equal(batch.linear[1].misc1, "32");
     assert.equal(batch.linear[1].misc2, "14");
     assert.equal(batch.pti.length, 1);
@@ -755,7 +754,6 @@ describe("extractFromSnapshot linear", () => {
     assert.equal(batch.linear[0].head, "V");
     assert.equal(batch.linear[0].udder_texture, "V");
     assert.equal(batch.linear[0].ms, "V");
-    assert.equal(batch.linear[0].majors, "VEAV");
     assert.equal(batch.linear[0].final_score, "84");
     assert.equal(batch.linear[0].misc1, "32");
     assert.equal(batch.linear[0].misc2, "14");
@@ -1009,8 +1007,8 @@ describe("csv zip", () => {
     );
     assert.match(csv, /^registration_number,registered_name,breed,/);
     assert.equal(
-      LINEAR_COLUMNS.slice(3, 19).join(","),
-      "stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv",
+      LINEAR_COLUMNS.slice(3, -3).join(","),
+      "stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3",
     );
     assert.match(csv, /"Name, with comma"/);
     const files = storeToZipFiles({

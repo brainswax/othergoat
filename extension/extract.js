@@ -691,20 +691,6 @@ function ensureLinearRow(byKey, registration, year, age, capturedAt, sourceUrl) 
   return byKey.get(key);
 }
 
-function paintMajors(row) {
-  if (!row.majors) {
-    row.majors = GENETICS_MAJOR_ORDER.map((key) => row[key])
-      .filter(Boolean)
-      .join("");
-    return;
-  }
-  if (row.ga || row.ds || row.bc || row.ms) return;
-  const letters = String(row.majors).replace(/\s+/g, "");
-  GENETICS_MAJOR_ORDER.forEach((key, index) => {
-    row[key] = letters[index] ?? "";
-  });
-}
-
 function applyCategoryLetters(row, letters) {
   GENETICS_STRUCTURAL_ORDER.forEach((key, index) => {
     if (letters[index]) row[key] = letters[index];
@@ -712,7 +698,6 @@ function applyCategoryLetters(row, letters) {
   GENETICS_MAJOR_ORDER.forEach((key, index) => {
     if (letters[8 + index]) row[key] = letters[8 + index];
   });
-  paintMajors(row);
 }
 
 function applyMappedCells(row, cells, map) {
@@ -797,7 +782,6 @@ function extractLinearFromTables(tables, registration, capturedAt, sourceUrl) {
           const fs = collapse(cells[fsI]);
           if (fs) row.final_score = fs;
         }
-        paintMajors(row);
       }
       continue;
     }

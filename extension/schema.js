@@ -66,7 +66,7 @@ export function compareIndividuals(a, b) {
   );
 }
 
-/** Same left-to-right order as ADGA Genetics Linear History. */
+/** Same groups as Genetics Linear History / LA reports. */
 export const LINEAR_COLUMNS = [
   "registration_number",
   "appraisal_date",
@@ -95,15 +95,14 @@ export const LINEAR_COLUMNS = [
   "back",
   "rump",
   "udder_texture",
-  "misc1",
-  "misc2",
-  "misc3",
   "ga",
   "ds",
   "bc",
   "ms",
   "final_score",
-  "majors",
+  "misc1",
+  "misc2",
+  "misc3",
   "source_url",
   "captured_at",
   "notes",

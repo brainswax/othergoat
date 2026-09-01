@@ -73,10 +73,10 @@ Parent links are registration numbers only. The parent’s name lives on the par
 One row per Linear History event.
 
 ```
-registration_number,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,misc1,misc2,misc3,ga,ds,bc,ms,final_score,majors,source_url,captured_at,notes
+registration_number,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3,source_url,captured_at,notes
 ```
 
-Trait keys follow the Genetics Linear History column order (linear scores, then structural letters, miscellaneous codes, then GA/DS/BC/MS). `majors` is the four category letters concatenated. Unmapped Genetics columns go in `notes`.
+Trait keys follow Genetics Linear History / LA report groups: linear scores, structural letters, the four majors (`ga`, `ds`, `bc`, `ms`), final score, then miscellaneous codes. Unmapped Genetics columns go in `notes`.
 
 ### pti.csv
 
@@ -131,7 +131,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 - Breed: `Breed Percent: 100% N` → `breed_percent=100`, `breed=N`.
 - Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe). Polled/black on the tree are name colors (green / black / red); unmarked names store `N`. Those implied flags lose to the same animal’s own identity heading.
 - Views swap via ASP.NET postback on the same URL (`__EVENTARGUMENT`). Milestone 1 only reads the resulting DOM.
-- Linear History on Genetics is `LAYear` + `Age` + linear scores (Stature … Rear Udder Side View), then a Structural Traits table (Head, Shoulder Assembly, Front Legs, Rear Legs, Feet, Back, Rump, Udder Texture, General Appearance, Dairy Strength, Body Capacity, Mammary System, FS), plus miscellaneous codes when present. Type Eval / PTA tables are not LA rows. Layout tables (Pedigree, Registry, DOB chrome) are not progeny.
+- Linear History on Genetics is `LAYear` + `Age` + linear scores (Stature … Rear Udder Side View), then a Structural Traits table (Head, Shoulder Assembly, Front Legs, Rear Legs, Feet, Back, Rump, Udder Texture, General Appearance, Dairy Strength, Body Capacity, Mammary System, FS), plus miscellaneous codes when present. Export column groups match that report: linear, structural, majors, final score, misc. Type Eval / PTA tables are not LA rows. Layout tables (Pedigree, Registry, DOB chrome) are not progeny.
 
 ---
 

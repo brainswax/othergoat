@@ -426,7 +426,10 @@ function linearSearchParts(row, nameOf) {
     row.appraisal_date,
     row.age,
     row.final_score,
-    row.majors,
+    row.ga,
+    row.ds,
+    row.bc,
+    row.ms,
     row.head,
     row.misc1,
     row.misc2,
@@ -477,7 +480,7 @@ function renderLinear(linear, nameOf, individuals, pti) {
           row.appraisal_date,
           row.age,
           row.final_score ? `FS ${row.final_score}` : "",
-          row.majors,
+          [row.ga, row.ds, row.bc, row.ms].filter(Boolean).join(" "),
         ]
           .filter(Boolean)
           .join(" · "),
