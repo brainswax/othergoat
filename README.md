@@ -10,7 +10,7 @@ Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-exp
 
 ## Milestones
 
-1. **Passive-only (current)** — Capture GoatDetail views as you open them. No POST from the extension.
+1. **Passive-only (done)** — Capture GoatDetail views as you open them. No POST from the extension.
 2. **Active individual** — Point at one registration; the extension POSTs that animal’s own views.
 3. **Active family** — After (2), POST-walk direct progeny, siblings, and parents.
 

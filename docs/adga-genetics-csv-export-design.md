@@ -1,6 +1,6 @@
 # Other Goats Records — ADGA Genetics capture → CSV zip
 
-**Status (2026-08-30):** Milestone 1 (passive-only) is implemented in `extension/`. Load unpacked from that folder (root `README.md`).
+**Status (2026-09-01):** Milestone 1 (passive-only) is **complete**. Load unpacked from `extension/` (root `README.md`). Milestones 2–3 (active individual / family walk) are not this pass.
 
 The extension does not contact any server.
 
@@ -108,7 +108,7 @@ registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_
 
 ## 8. Milestones
 
-### 1 – Passive-only (this pass)
+### 1 – Passive-only (**done**)
 
 Collect as the user browses. Parse the DOM after they open a view. Do not POST.
 
