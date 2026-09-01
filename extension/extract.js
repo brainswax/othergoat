@@ -673,7 +673,7 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
         }
       }
     }
-    if (view === "progeny") {
+    if (opts.recordProgeny && view === "progeny") {
       batch.individuals.push(
         ...extractProgenyRows(page.tables, subject, capturedAt, page.url ?? ""),
       );

@@ -405,6 +405,32 @@ describe("extractFromSnapshot progeny", () => {
     assert.equal(kid.polled, "Y");
     assert.equal(isIndividualComplete(kid), false);
   });
+
+  it("skips progeny rows when recordProgeny is off", () => {
+    const batch = extractFromSnapshot(
+      {
+        url: SAMPLE_URL,
+        title: "ADGA Genetics",
+        selectedMenu: "Progeny",
+        text: "SG ALDER*GLEN TRES BONNE 3*M - N001352104 (PB Doe)\nPTI21: 10",
+        tables: [
+          {
+            rows: [
+              ["Name", "Reg #", "Herdbook", "Breed", "Sex", "DOB", "IsPolled"],
+              ["KID ONE", "N000333333", "PB", "N", "F", "1/2/2024", "Y"],
+            ],
+          },
+        ],
+      },
+      "t",
+      { recordProgeny: false },
+    );
+    assert.equal(
+      batch.individuals.some((row) => row.registration_number === "PN333333"),
+      false,
+    );
+    assert.equal(batch.individuals[0].registration_number, "PN1352104");
+  });
 });
 
 describe("extractFromSnapshot linear", () => {

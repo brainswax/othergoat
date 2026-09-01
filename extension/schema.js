@@ -162,6 +162,7 @@ export function emptyBatch() {
 export const DEFAULT_SETTINGS = {
   recordIndividuals: true,
   captureAncestry: true,
+  recordProgeny: true,
   recordPti: true,
   recordLinear: true,
 };
@@ -171,6 +172,7 @@ export function normalizeSettings(raw) {
   return {
     recordIndividuals: src.recordIndividuals !== false,
     captureAncestry: src.captureAncestry !== false,
+    recordProgeny: src.recordProgeny !== false,
     recordPti: src.recordPti !== false,
     recordLinear: src.recordLinear !== false,
   };

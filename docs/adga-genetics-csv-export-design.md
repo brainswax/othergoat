@@ -32,7 +32,7 @@ Content script on `https://genetics.adga.org/GoatDetail.aspx*`.
 
 - After load (and after ASP.NET postbacks that swap the content pane), parse the visible DOM.
 - Detect the view from `__EVENTARGUMENT` / `__EVENTTARGET` when present, else the selected submenu, else table shape. Default is Pedigree.
-- Send a **batch** (individuals + LA rows + PTI rows) to the service worker, according to Settings (all on by default; user can opt out of individuals, ancestry stub rows, PTI, or Linear History). Ancestry stubs only apply when recording individuals. Sire and dam on the open animal are recorded whenever that animal row is saved.
+- Send a **batch** (individuals + LA rows + PTI rows) to the service worker, according to Settings (all on by default; user can opt out of individuals, ancestry stub rows, progeny stub rows, PTI, or Linear History). Ancestry and progeny stubs only apply when recording individuals. Sire and dam on the open animal are recorded whenever that animal row is saved.
 - Debounce identical batches; a view change is a new batch.
 - Do not submit the ASP.NET form. Hidden `__EVENTARGUMENT` is recorded for later milestones only.
 
