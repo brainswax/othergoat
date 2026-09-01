@@ -129,7 +129,7 @@ After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tr
 - Animal URL: `GoatDetail.aspx?RegNumber={REG}`.
 - Heading: `NAME - REG (PB Doe|Buck…)`. DOB/FS: `DOB: M/D/YYYY FS84 (+V++) @ 01-03`.
 - Breed: `Breed Percent: 100% N` → `breed_percent=100`, `breed=N`.
-- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links.
+- Pedigree labels `S :` / `D :` / `SS :` / … with GoatDetail links. Ancestor sex is inferred from the last letter (`S` → buck, `D` → doe).
 - Views swap via ASP.NET postback on the same URL (`__EVENTARGUMENT`). Milestone 1 only reads the resulting DOM.
 - Linear History on Genetics is `LAYear` + `Age` + traits in this order: Stature, Strength, Dairyness, RA, RW, RLS, FUA, RUH, RUA, Medial, UD, TP, TD, TL, Body Depth, Rear Udder Side View. Type Eval / PTA tables are not LA rows. Layout tables (Pedigree, Registry, DOB chrome) are not progeny.
 

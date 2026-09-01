@@ -365,6 +365,13 @@ function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
   });
 }
 
+function sexFromPedigreeLabel(label) {
+  const tag = String(label ?? "").trim().toUpperCase();
+  if (/S$/.test(tag)) return "BUCK";
+  if (/D$/.test(tag)) return "DOE";
+  return "";
+}
+
 function applyParentEdge(byReg, childReg, role, parentReg) {
   if (!childReg || !parentReg) return;
   if (!byReg.has(childReg)) {
@@ -384,12 +391,17 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
       const row = emptyIndividual();
       row.registration_number = node.registration;
       row.registered_name = node.name;
+      row.sex = sexFromPedigreeLabel(node.label);
       row.herdbook = node.herdbook ?? "";
       row.source_url = sourceUrl;
       row.captured_at = capturedAt;
       byReg.set(node.registration, row);
-    } else if (node.name && !byReg.get(node.registration).registered_name) {
-      byReg.get(node.registration).registered_name = node.name;
+    } else {
+      const existing = byReg.get(node.registration);
+      if (node.name && !existing.registered_name) {
+        existing.registered_name = node.name;
+      }
+      if (!existing.sex) existing.sex = sexFromPedigreeLabel(node.label);
     }
   }
   for (const node of nodes) {
