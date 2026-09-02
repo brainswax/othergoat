@@ -1,0 +1,5 @@
+#!/bin/sh
+# Fail the commit if the standalone export scan fails.
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+exec node --test test/standalone-export.test.js

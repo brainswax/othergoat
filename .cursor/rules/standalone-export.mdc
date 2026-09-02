@@ -1,0 +1,8 @@
+---
+description: Other Goats is a standalone ADGA Genetics export. Never name a downstream app.
+alwaysApply: true
+---
+
+# Standalone export
+
+Never name another application as the intended consumer of this zip. No companion-app, designed-for, or integration copy in UI, docs, comments, tests, or commit messages. The export is a local ADGA Genetics capture for spreadsheets or any tool the user chooses.

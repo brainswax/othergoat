@@ -6,6 +6,9 @@
   "license": "GPL-3.0-only",
   "scripts": {
     "test": "node --test",
+    "test:standalone": "node --test test/standalone-export.test.js",
+    "hooks": "node scripts/install-hooks.mjs",
+    "prepare": "node scripts/install-hooks.mjs",
     "pack": "node scripts/pack-extension.mjs",
     "readme:version": "node scripts/readme-version.mjs",
     "release": "node scripts/release.mjs"

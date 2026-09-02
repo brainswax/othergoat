@@ -1,4 +1,4 @@
-/** Semi-annual CDCB yield eval from a scrape date. Same rule as Goatsmith `suggestedPtiEval`. */
+/** Semi-annual CDCB yield eval from a scrape date (August / December). */
 
 export const PTI_EVAL_MONTHS = ["AUGUST", "DECEMBER"];
 

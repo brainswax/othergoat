@@ -60,9 +60,9 @@ A CSV is one table. Multiple tables are separate files in the zip. **`manifest.j
 format, manifestVersion, exportedAt, exporter { name, version }, files [{ name, kind, version, rows }]
 ```
 
-`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Today `manifestVersion` and each file `version` are `"1.0"`. Goatsmith M6.6 reads this when present; missing manifest still parses the three CSVs (loose upload).
+`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Today `manifestVersion` and each file `version` are `"1.0"`. The manifest is optional; the three CSVs are usable on their own (including a loose CSV download).
 
-**Omit empty columns** (Settings, **off** by default): drop a column when every row is blank. For spreadsheets. Leave off for Goatsmith — the default zip writes the full locked header. Empty tables still get the full header. When on, `exporter.omitEmptyColumns` is `true` in the zip manifest.
+**Omit empty columns** (Settings, **off** by default): drop a column when every row is blank. For spreadsheets. Leave off to keep the full locked header. Empty tables still get the full header. When on, `exporter.omitEmptyColumns` is `true` in the zip manifest.
 
 ### individuals.csv
 
@@ -72,7 +72,7 @@ One row per registration.
 registration_number,registered_name,title,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,linear_majors,linear_age,sire_registration,dam_registration,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,goat_id,source_url,captured_at,notes
 ```
 
-**`owner_id`:** ADGA membership ID. Fill it when the animal appears on Genetics **Owned by me**, or later from app.adga.org **Owner**. That is the only roster assignment. **Empty or omitted = unknown** — catalog-only, not the importer’s herd, not “this goat is unclaimed.” Do not unclaim a claimed animal because the column is blank. Do not invent `owner_id` from a Genetics GoatDetail visit.
+**`owner_id`:** ADGA membership ID. Fill it when the animal appears on Genetics **Owned by me**, or later from app.adga.org **Owner**. **Empty or omitted = unknown.** Do not invent `owner_id` from a Genetics GoatDetail visit.
 
 **app.adga.org Identity (columns locked; scrape later):** `owner_name`, `breeder_id`, `breeder_name`, `tattoo_re`, `tattoo_le`, `tattoo_comment`, `eid`, `eid_location`, `ears`, `horns`, `conforms`, `description`, `status`, `breeding_method`, `application_id`, `file_app_id`, `format_1` (ICAR/CDCB id, e.g. `NDUSA000002495341`), `goat_id` (numeric). Store `horns` as ADGA shows it (`POLLED`, `DISBUDDED`, `HORNED`, …). `Horns: POLLED` also fills empty `polled` as Y. `DISBUDDED` / `HORNED` do not. Do not overwrite a filled `polled`. `description` is free text (e.g. BUCKSKIN), not the Genetics coat-pattern flags. Parent names and parent-owner boxes belong on the parent’s own row. Photo is out of the CSV.
 
@@ -100,7 +100,7 @@ One row per registration per CDCB season. The left pane always has four slots (e
 registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_at
 ```
 
-Map `captured_at` (scrape date) to August or December (Jan–Jul → prior December; Aug–Nov → August that year; Dec → December that year). Same-season merge updates the four numbers; a scrape after the next drop is a new row. Do not invent a third season. Goatsmith import (**M6.10**) upserts by that eval.
+Map `captured_at` (scrape date) to August or December (Jan–Jul → prior December; Aug–Nov → August that year; Dec → December that year). Same-season merge updates the four numbers; a scrape after the next drop is a new row. Do not invent a third season.
 
 ---
 
@@ -150,7 +150,7 @@ Columns are in `individuals.csv`. Do not capture `app.adga.org` until this item.
 
 `owner_id` is on the individual row (ADGA member ID). Capture Genetics **Owned by me** so we know which membership owns the animal. GoatDetail visits do not set it.
 
-Empty or omitted `owner_id` is **unknown** (stubs, other people’s goats, pages that are not Owned by me). Create **catalog-only** — do not add the row to the importer’s working herd. It is not an unclaim. Goatsmith must not treat a blank as “unclaimed” and must not clear an existing claim. Only a **present** `owner_id` asserts a membership and puts the goat on that herd.
+Empty or omitted `owner_id` is **unknown** (stubs, other people’s goats, pages that are not Owned by me). Only a **present** `owner_id` asserts a membership.
 
 ---
 
