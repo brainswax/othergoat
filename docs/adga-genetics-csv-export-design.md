@@ -52,7 +52,7 @@ Popup lists unique individuals and downloads the zip. Clear wipes the local stor
 
 One download: `adga-genetics-export-YYYY-MM-DD-HHmm.zip`
 
-A CSV is one table. Multiple tables are separate files in the zip. **`manifest.json`** describes the zip. Versions are condensed semver **`major.patch`** (string, e.g. `"1.0"`). Same major is compatible — a `1.x` reader can ingest any `1.y`. Bump **patch** when adding fields (debug). Bump **major** when that table’s meaning breaks. Bump `manifestVersion` major only when the manifest shape itself breaks.
+A CSV is one table. Multiple tables are separate files in the zip. **`manifest.json`** describes the zip. Versions are condensed semver **`major.patch`** (string, e.g. `"1.0"`). Same major is compatible — a `1.x` reader can ingest any `1.y`. A reader that does not understand a **higher major** should reject that file, or the whole zip if `manifestVersion` major is newer. Bump **patch** when adding fields (debug). Bump **major** when that table’s meaning breaks. Bump `manifestVersion` major only when the manifest shape itself breaks.
 
 ### manifest.json
 
