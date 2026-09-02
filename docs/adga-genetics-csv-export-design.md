@@ -8,7 +8,7 @@ The extension does not contact any server.
 
 ## 1. Overview
 
-A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by registration number. The user downloads a zip of `adga-genetics.json` plus three CSVs: individuals, linear appraisals, and PTI/ETA.
+A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by registration number. The user downloads a zip of `manifest.json` plus three CSVs: individuals, linear appraisals, and PTI/ETA.
 
 ## 2. Goals
 
@@ -52,9 +52,9 @@ Popup lists unique individuals and downloads the zip. Clear wipes the local stor
 
 One download: `adga-genetics-export-YYYY-MM-DD-HHmm.zip`
 
-A CSV is one table. Multiple tables are separate files in the zip. **`adga-genetics.json`** is the format manifest (`formatVersion` 1). Extra CSV columns stay backward compatible without a bump. Bump `formatVersion` only when meaning changes (file rename, PTI grain, required new file).
+A CSV is one table. Multiple tables are separate files in the zip. **`manifest.json`** is the format manifest (`formatVersion` 1). Extra CSV columns stay backward compatible without a bump. Bump `formatVersion` only when meaning changes (file rename, PTI grain, required new file).
 
-### adga-genetics.json
+### manifest.json
 
 ```
 format, formatVersion, exportedAt, exporter { name, version }, files [{ name, kind, rows }]
@@ -126,7 +126,7 @@ Map `captured_at` (scrape date) to August or December (Jan–Jul → prior Decem
 
 Collect as the user browses. Parse the DOM after they open a view. Do not POST.
 
-Acceptance: Browse several animals and views → popup lists unique registrations → zip contains `adga-genetics.json`, `individuals.csv`, `linear_appraisals.csv`, and `pti.csv` with merged partial rows.
+Acceptance: Browse several animals and views → popup lists unique registrations → zip contains `manifest.json`, `individuals.csv`, `linear_appraisals.csv`, and `pti.csv` with merged partial rows.
 
 ### 2 – Active individual (not this pass)
 

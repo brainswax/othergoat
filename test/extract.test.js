@@ -1122,7 +1122,7 @@ describe("csv zip", () => {
     assert.equal(bytes[3], 0x04);
   });
 
-  it("writes adga-genetics.json with format version and file row counts", () => {
+  it("writes zip manifest.json with format version and file row counts", () => {
     const files = storeToZipFiles(
       {
         individuals: [{ registration_number: "N1" }, { registration_number: "N2" }],

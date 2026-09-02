@@ -2,7 +2,7 @@
 
 export const FORMAT_ID = "adga-genetics-export";
 export const FORMAT_VERSION = 1;
-export const MANIFEST_FILE = "adga-genetics.json";
+export const MANIFEST_FILE = "manifest.json";
 export const EXPORTER_NAME = "other-goats-records";
 
 export const INDIVIDUAL_COLUMNS = [

@@ -14,7 +14,7 @@ Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-exp
 2. **Active individual** — Point at one registration; the extension POSTs that animal’s own views.
 3. **Active family** — After (2), POST-walk direct progeny, siblings, and parents.
 
-The zip is **format version 1**: `adga-genetics.json` plus the three CSVs. Historic PTI, `owner_id`, and app.adga.org Identity columns (empty until that scrape) are in that contract. See the design doc.
+The zip is **format version 1**: `manifest.json` plus the three CSVs. Historic PTI, `owner_id`, and app.adga.org Identity columns (empty until that scrape) are in that contract. See the design doc.
 
 ## Install
 
@@ -49,9 +49,9 @@ If you already loaded an older build, click **Reload** on `chrome://extensions`,
 
 ## Export
 
-The zip contains `adga-genetics.json` and three CSVs (one table each):
+The zip contains `manifest.json` and three CSVs (one table each):
 
-- `adga-genetics.json` — format id, `formatVersion` (1), exporter version, and file row counts.
+- `manifest.json` — format id, `formatVersion` (1), exporter version, and file row counts.
 - `individuals.csv` — one row per **ADGA registration ID** (`PD2237546`, not Genetics `D002237546`); `sire_registration` / `dam_registration` only (no parent names). `title` is SG/SGCH/CH/GCH. Identity pane FS, condensed majors, and appraisal age go on this row. `owner_id` is the ADGA member ID when the animal appears on Genetics **Owned by me** (empty = unknown). Also reserved: tattoos, EID, ears, horns, conforms, description, status, breeder, breeding method, Format 1, goat id (filled later from app.adga.org Identity). Pedigree creates a stub for every animal in the visible tree.
 - `linear_appraisals.csv` — one row per Linear History event: registration, registered name, linear scores, structural letters, GA/DS/BC/MS, final score, miscellaneous codes.
 - `pti.csv` — one row per registration per scrape-season: registered name, `pti21`, `pti12`, `eta21`, `eta12`, `captured_at` (maps to August or December).
