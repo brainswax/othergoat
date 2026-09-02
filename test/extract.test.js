@@ -18,6 +18,7 @@ import {
   FILE_VERSIONS,
   FORMAT_ID,
   MANIFEST_VERSION,
+  parseFileVersion,
   LINEAR_COLUMNS,
   MANIFEST_FILE,
   PTI_COLUMNS,
@@ -1130,7 +1131,7 @@ describe("csv zip", () => {
         linear: [{ registration_number: "N1", appraisal_date: "2025" }],
         pti: [{ registration_number: "N1", pti21: "40" }],
       },
-      { exportedAt: "2026-09-02T12:00:00.000Z", exporterVersion: "0.2.49" },
+      { exportedAt: "2026-09-02T12:00:00.000Z", exporterVersion: "0.2.50" },
     );
     const raw = files.find((file) => file.name === MANIFEST_FILE).text;
     const manifest = JSON.parse(raw);
@@ -1138,7 +1139,7 @@ describe("csv zip", () => {
     assert.equal(manifest.manifestVersion, MANIFEST_VERSION);
     assert.equal(manifest.exportedAt, "2026-09-02T12:00:00.000Z");
     assert.equal(manifest.exporter.name, "other-goats-records");
-    assert.equal(manifest.exporter.version, "0.2.49");
+    assert.equal(manifest.exporter.version, "0.2.50");
     assert.deepEqual(
       manifest.files.map((file) => [file.name, file.kind, file.version, file.rows]),
       [
@@ -1149,8 +1150,10 @@ describe("csv zip", () => {
     );
     assert.equal(
       buildExportManifest({ individuals: [], linear: [], pti: [] }).manifestVersion,
-      1,
+      "1.0",
     );
+    assert.deepEqual(parseFileVersion("1.12"), { major: 1, patch: 12 });
+    assert.deepEqual(parseFileVersion("2.0"), { major: 2, patch: 0 });
   });
 
   it("includes owner_id on individuals.csv", () => {

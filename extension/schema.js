@@ -1,9 +1,15 @@
 /** Locked export columns. Join tables on registration_number. */
 
 export const FORMAT_ID = "adga-genetics-export";
-export const MANIFEST_VERSION = 1;
+/** Condensed semver `major.patch`. Same major is compatible. */
+export const MANIFEST_VERSION = "1.0";
 export const MANIFEST_FILE = "manifest.json";
 export const EXPORTER_NAME = "other-goats-records";
+
+export function parseFileVersion(value) {
+  const [major, patch] = String(value ?? "0.0").split(".");
+  return { major: Number(major) || 0, patch: Number(patch) || 0 };
+}
 
 export const INDIVIDUAL_COLUMNS = [
   "registration_number",
@@ -172,11 +178,11 @@ export const STORE_FILES = {
   pti: "pti.csv",
 };
 
-/** Bump only the table whose meaning changed. Extra columns do not bump. */
+/** `major.patch`. Patch = additive. Major = breaking. Same major is compatible. */
 export const FILE_VERSIONS = {
-  individuals: 1,
-  linear: 1,
-  pti: 1,
+  individuals: "1.0",
+  linear: "1.0",
+  pti: "1.0",
 };
 
 export function emptyIndividual() {
