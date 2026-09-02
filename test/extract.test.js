@@ -15,8 +15,9 @@ import {
 } from "../extension/extract.js";
 import {
   emptyStore,
+  FILE_VERSIONS,
   FORMAT_ID,
-  FORMAT_VERSION,
+  MANIFEST_VERSION,
   LINEAR_COLUMNS,
   MANIFEST_FILE,
   PTI_COLUMNS,
@@ -1122,31 +1123,34 @@ describe("csv zip", () => {
     assert.equal(bytes[3], 0x04);
   });
 
-  it("writes zip manifest.json with format version and file row counts", () => {
+  it("writes zip manifest.json with per-file versions and row counts", () => {
     const files = storeToZipFiles(
       {
         individuals: [{ registration_number: "N1" }, { registration_number: "N2" }],
         linear: [{ registration_number: "N1", appraisal_date: "2025" }],
         pti: [{ registration_number: "N1", pti21: "40" }],
       },
-      { exportedAt: "2026-09-02T12:00:00.000Z", exporterVersion: "0.2.47" },
+      { exportedAt: "2026-09-02T12:00:00.000Z", exporterVersion: "0.2.49" },
     );
     const raw = files.find((file) => file.name === MANIFEST_FILE).text;
     const manifest = JSON.parse(raw);
     assert.equal(manifest.format, FORMAT_ID);
-    assert.equal(manifest.formatVersion, FORMAT_VERSION);
+    assert.equal(manifest.manifestVersion, MANIFEST_VERSION);
     assert.equal(manifest.exportedAt, "2026-09-02T12:00:00.000Z");
     assert.equal(manifest.exporter.name, "other-goats-records");
-    assert.equal(manifest.exporter.version, "0.2.47");
+    assert.equal(manifest.exporter.version, "0.2.49");
     assert.deepEqual(
-      manifest.files.map((file) => [file.name, file.kind, file.rows]),
+      manifest.files.map((file) => [file.name, file.kind, file.version, file.rows]),
       [
-        ["individuals.csv", "individuals", 2],
-        ["linear_appraisals.csv", "linear_appraisals", 1],
-        ["pti.csv", "pti", 1],
+        ["individuals.csv", "individuals", FILE_VERSIONS.individuals, 2],
+        ["linear_appraisals.csv", "linear_appraisals", FILE_VERSIONS.linear, 1],
+        ["pti.csv", "pti", FILE_VERSIONS.pti, 1],
       ],
     );
-    assert.equal(buildExportManifest({ individuals: [], linear: [], pti: [] }).formatVersion, 1);
+    assert.equal(
+      buildExportManifest({ individuals: [], linear: [], pti: [] }).manifestVersion,
+      1,
+    );
   });
 
   it("includes owner_id on individuals.csv", () => {

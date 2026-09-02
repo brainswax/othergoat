@@ -52,15 +52,15 @@ Popup lists unique individuals and downloads the zip. Clear wipes the local stor
 
 One download: `adga-genetics-export-YYYY-MM-DD-HHmm.zip`
 
-A CSV is one table. Multiple tables are separate files in the zip. **`manifest.json`** is the format manifest (`formatVersion` 1). Extra CSV columns stay backward compatible without a bump. Bump `formatVersion` only when meaning changes (file rename, PTI grain, required new file).
+A CSV is one table. Multiple tables are separate files in the zip. **`manifest.json`** describes the zip (`manifestVersion` 1). Each CSV has its own `version`. Extra columns on a table do not bump that table. Bump a file’s version only when that table’s meaning changes. Bump `manifestVersion` only when the manifest shape itself changes.
 
 ### manifest.json
 
 ```
-format, formatVersion, exportedAt, exporter { name, version }, files [{ name, kind, rows }]
+format, manifestVersion, exportedAt, exporter { name, version }, files [{ name, kind, version, rows }]
 ```
 
-`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Goatsmith M6.6 reads this when present; missing manifest still parses the three CSVs (loose upload).
+`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Today each file is version 1. Goatsmith M6.6 reads this when present; missing manifest still parses the three CSVs (loose upload).
 
 ### individuals.csv
 

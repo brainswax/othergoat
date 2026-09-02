@@ -1,7 +1,7 @@
 /** Locked export columns. Join tables on registration_number. */
 
 export const FORMAT_ID = "adga-genetics-export";
-export const FORMAT_VERSION = 1;
+export const MANIFEST_VERSION = 1;
 export const MANIFEST_FILE = "manifest.json";
 export const EXPORTER_NAME = "other-goats-records";
 
@@ -170,6 +170,13 @@ export const STORE_FILES = {
   individuals: "individuals.csv",
   linear: "linear_appraisals.csv",
   pti: "pti.csv",
+};
+
+/** Bump only the table whose meaning changed. Extra columns do not bump. */
+export const FILE_VERSIONS = {
+  individuals: 1,
+  linear: 1,
+  pti: 1,
 };
 
 export function emptyIndividual() {

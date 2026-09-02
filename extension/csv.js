@@ -1,10 +1,11 @@
 import {
   EXPORTER_NAME,
+  FILE_VERSIONS,
   FORMAT_ID,
-  FORMAT_VERSION,
   INDIVIDUAL_COLUMNS,
   LINEAR_COLUMNS,
   MANIFEST_FILE,
+  MANIFEST_VERSION,
   PTI_COLUMNS,
   STORE_FILES,
 } from "./schema.js";
@@ -57,7 +58,7 @@ function withRegisteredNames(lists) {
 export function buildExportManifest(lists, meta = {}) {
   return {
     format: FORMAT_ID,
-    formatVersion: FORMAT_VERSION,
+    manifestVersion: MANIFEST_VERSION,
     exportedAt: meta.exportedAt || new Date().toISOString(),
     exporter: {
       name: EXPORTER_NAME,
@@ -67,16 +68,19 @@ export function buildExportManifest(lists, meta = {}) {
       {
         name: STORE_FILES.individuals,
         kind: "individuals",
+        version: FILE_VERSIONS.individuals,
         rows: (lists?.individuals ?? []).length,
       },
       {
         name: STORE_FILES.linear,
         kind: "linear_appraisals",
+        version: FILE_VERSIONS.linear,
         rows: (lists?.linear ?? []).length,
       },
       {
         name: STORE_FILES.pti,
         kind: "pti",
+        version: FILE_VERSIONS.pti,
         rows: (lists?.pti ?? []).length,
       },
     ],
