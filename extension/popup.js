@@ -41,6 +41,7 @@ const ancestryOpt = document.getElementById("opt-ancestry");
 const progenyOpt = document.getElementById("opt-progeny");
 const ptiOpt = document.getElementById("opt-pti");
 const linearOpt = document.getElementById("opt-linear");
+const omitEmptyOpt = document.getElementById("opt-omit-empty");
 const panelEl = document.getElementById("panel");
 const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
@@ -563,6 +564,7 @@ function paintSettings(settings) {
   progenyOpt.checked = opts.recordProgeny;
   ptiOpt.checked = opts.recordPti;
   linearOpt.checked = opts.recordLinear;
+  omitEmptyOpt.checked = opts.omitEmptyColumns;
   ancestryOpt.disabled = !opts.recordIndividuals;
   progenyOpt.disabled = !opts.recordIndividuals;
 }
@@ -574,6 +576,7 @@ function readSettingsForm() {
     recordProgeny: progenyOpt.checked,
     recordPti: ptiOpt.checked,
     recordLinear: linearOpt.checked,
+    omitEmptyColumns: omitEmptyOpt.checked,
   };
 }
 
@@ -728,7 +731,12 @@ downloadCsvBtn.addEventListener("click", async () => {
         ? store.pti
         : store.individuals;
   if ((rows ?? []).length === 0) return;
-  downloadBlob(storeToCsvBlob(store, kind), csvExportFilename(kind));
+  downloadBlob(
+    storeToCsvBlob(store, kind, {
+      omitEmptyColumns: readSettingsForm().omitEmptyColumns,
+    }),
+    csvExportFilename(kind),
+  );
 });
 
 downloadBtn.addEventListener("click", async () => {
@@ -745,6 +753,7 @@ downloadBtn.addEventListener("click", async () => {
     storeToZipBlob(store, {
       exportedAt: new Date().toISOString(),
       exporterVersion: chrome.runtime.getManifest().version,
+      omitEmptyColumns: readSettingsForm().omitEmptyColumns,
     }),
     exportFilename(),
   );
@@ -761,6 +770,7 @@ ancestryOpt.addEventListener("change", saveSettings);
 progenyOpt.addEventListener("change", saveSettings);
 ptiOpt.addEventListener("change", saveSettings);
 linearOpt.addEventListener("change", saveSettings);
+omitEmptyOpt.addEventListener("change", saveSettings);
 
 panelEl.addEventListener("scroll", persistUi, { passive: true });
 

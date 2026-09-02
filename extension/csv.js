@@ -30,6 +30,19 @@ export function recordsToCsv(records, columns) {
   return `${lines.join("\n")}\n`;
 }
 
+function filled(value) {
+  return value != null && String(value).trim() !== "";
+}
+
+/** Columns that have a value on at least one row. Empty tables keep the full header. */
+export function exportColumns(records, columns, omitEmpty = false) {
+  if (!omitEmpty || !(records ?? []).length) return columns;
+  const used = columns.filter((key) =>
+    records.some((row) => filled(row?.[key])),
+  );
+  return used.length ? used : columns;
+}
+
 function nameByRegistration(individuals) {
   const names = new Map();
   for (const row of individuals ?? []) {
@@ -63,6 +76,7 @@ export function buildExportManifest(lists, meta = {}) {
     exporter: {
       name: EXPORTER_NAME,
       version: String(meta.exporterVersion ?? ""),
+      ...(meta.omitEmptyColumns ? { omitEmptyColumns: true } : {}),
     },
     files: [
       {
@@ -89,6 +103,7 @@ export function buildExportManifest(lists, meta = {}) {
 
 export function storeToZipFiles(lists, meta = {}) {
   const named = withRegisteredNames(lists);
+  const omit = Boolean(meta.omitEmptyColumns);
   return [
     {
       name: MANIFEST_FILE,
@@ -96,15 +111,24 @@ export function storeToZipFiles(lists, meta = {}) {
     },
     {
       name: STORE_FILES.individuals,
-      text: recordsToCsv(named.individuals ?? [], INDIVIDUAL_COLUMNS),
+      text: recordsToCsv(
+        named.individuals ?? [],
+        exportColumns(named.individuals, INDIVIDUAL_COLUMNS, omit),
+      ),
     },
     {
       name: STORE_FILES.linear,
-      text: recordsToCsv(named.linear ?? [], LINEAR_COLUMNS),
+      text: recordsToCsv(
+        named.linear ?? [],
+        exportColumns(named.linear, LINEAR_COLUMNS, omit),
+      ),
     },
     {
       name: STORE_FILES.pti,
-      text: recordsToCsv(named.pti ?? [], PTI_COLUMNS),
+      text: recordsToCsv(
+        named.pti ?? [],
+        exportColumns(named.pti, PTI_COLUMNS, omit),
+      ),
     },
   ];
 }
@@ -122,14 +146,24 @@ export function csvExportFilename(kind, when = new Date()) {
   return `adga-genetics-${base}-${stamp}.csv`;
 }
 
-export function storeToCsvBlob(lists, kind) {
+export function storeToCsvBlob(lists, kind, meta = {}) {
   const named = withRegisteredNames(lists);
+  const omit = Boolean(meta.omitEmptyColumns);
   const text =
     kind === "linear"
-      ? recordsToCsv(named.linear ?? [], LINEAR_COLUMNS)
+      ? recordsToCsv(
+          named.linear ?? [],
+          exportColumns(named.linear, LINEAR_COLUMNS, omit),
+        )
       : kind === "pti"
-        ? recordsToCsv(named.pti ?? [], PTI_COLUMNS)
-        : recordsToCsv(named.individuals ?? [], INDIVIDUAL_COLUMNS);
+        ? recordsToCsv(
+            named.pti ?? [],
+            exportColumns(named.pti, PTI_COLUMNS, omit),
+          )
+        : recordsToCsv(
+            named.individuals ?? [],
+            exportColumns(named.individuals, INDIVIDUAL_COLUMNS, omit),
+          );
   return new Blob([text], { type: "text/csv;charset=utf-8" });
 }
 

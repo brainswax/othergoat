@@ -222,6 +222,7 @@ export const DEFAULT_SETTINGS = {
   recordProgeny: true,
   recordPti: true,
   recordLinear: true,
+  omitEmptyColumns: false,
 };
 
 export function normalizeSettings(raw) {
@@ -232,5 +233,6 @@ export function normalizeSettings(raw) {
     recordProgeny: src.recordProgeny !== false,
     recordPti: src.recordPti !== false,
     recordLinear: src.recordLinear !== false,
+    omitEmptyColumns: src.omitEmptyColumns === true,
   };
 }

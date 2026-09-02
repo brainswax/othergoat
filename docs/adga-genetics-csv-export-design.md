@@ -62,6 +62,8 @@ format, manifestVersion, exportedAt, exporter { name, version }, files [{ name, 
 
 `format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Today `manifestVersion` and each file `version` are `"1.0"`. Goatsmith M6.6 reads this when present; missing manifest still parses the three CSVs (loose upload).
 
+**Omit empty columns** (Settings, **off** by default): drop a column when every row is blank. For spreadsheets. Leave off for Goatsmith — the default zip writes the full locked header. Empty tables still get the full header. When on, `exporter.omitEmptyColumns` is `true` in the zip manifest.
+
 ### individuals.csv
 
 One row per registration.

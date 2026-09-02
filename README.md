@@ -58,6 +58,8 @@ The zip contains `manifest.json` and three CSVs (one table each):
 
 Opening Pedigree creates a stub row for every animal in the visible tree (name, registration, parent registrations). Visiting that animal later fills breed, DOB, LA, and PTI. Empty cells are not overwritten.
 
+Settings → **Omit empty columns on download** is off by default (Goatsmith wants the full header). Turn it on for a slimmer spreadsheet.
+
 ## Tests
 
 ```bash

@@ -38,6 +38,7 @@ import { suggestedPtiEval } from "../extension/pti.js";
 import {
   buildExportManifest,
   csvExportFilename,
+  exportColumns,
   exportFilename,
   recordsToCsv,
   storeToZipBlob,
@@ -1154,6 +1155,29 @@ describe("csv zip", () => {
     );
     assert.deepEqual(parseFileVersion("1.12"), { major: 1, patch: 12 });
     assert.deepEqual(parseFileVersion("2.0"), { major: 2, patch: 0 });
+  });
+
+  it("omits columns that are empty on every row when asked", () => {
+    const rows = [
+      { registration_number: "PN1352104", registered_name: "TRES", owner_id: "" },
+    ];
+    assert.deepEqual(
+      exportColumns(rows, INDIVIDUAL_COLUMNS, false),
+      INDIVIDUAL_COLUMNS,
+    );
+    const slim = exportColumns(rows, INDIVIDUAL_COLUMNS, true);
+    assert.deepEqual(slim, ["registration_number", "registered_name"]);
+    assert.equal(exportColumns([], INDIVIDUAL_COLUMNS, true), INDIVIDUAL_COLUMNS);
+    const files = storeToZipFiles(
+      { individuals: rows, linear: [], pti: [] },
+      { omitEmptyColumns: true },
+    );
+    const csv = files.find((file) => file.name === "individuals.csv").text;
+    assert.equal(csv.split("\n")[0], "registration_number,registered_name");
+    assert.match(csv, /PN1352104,TRES/);
+    assert.doesNotMatch(csv, /owner_id/);
+    const full = storeToZipFiles({ individuals: rows, linear: [], pti: [] });
+    assert.match(full.find((file) => file.name === "individuals.csv").text, /^registration_number,registered_name,title,/);
   });
 
   it("includes owner_id on individuals.csv", () => {
