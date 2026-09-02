@@ -36,6 +36,7 @@
       "resources": [
         "extract.js",
         "schema.js",
+        "pti.js",
         "registration.js",
         "popup.html",
         "popup.css",

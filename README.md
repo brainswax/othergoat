@@ -14,6 +14,8 @@ Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-exp
 2. **Active individual** — Point at one registration; the extension POSTs that animal’s own views.
 3. **Active family** — After (2), POST-walk direct progeny, siblings, and parents.
 
+The zip is **format version 1**: `adga-genetics.json` plus the three CSVs. Historic PTI, `owner_id`, and app.adga.org Identity columns (empty until that scrape) are in that contract. See the design doc.
+
 ## Install
 
 Until this is on the Chrome Web Store, install **0.2.46** from GitHub:
@@ -37,7 +39,7 @@ Chrome will warn that this is an unpacked developer extension. That is expected 
 3. **Load unpacked** and choose the `extension/` folder in this repo.
 4. Browse animal pages such as  
    `https://genetics.adga.org/GoatDetail.aspx?RegNumber=…`
-5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows). On Genetics pages, the panel stays in the header — pause/play and minimize/maximize persist. Off Genetics, use the toolbar icon.
+5. Open Pedigree, Progeny, and Linear History on animals you care about (each view adds more rows). Open **Owned by me** to fill `owner_id`. On Genetics pages, the panel stays in the header — pause/play and minimize/maximize persist. Off Genetics, use the toolbar icon.
 6. Click the extension icon for the queue, **Settings** (what to capture), and **Download zip**  
    (`adga-genetics-export-YYYY-MM-DD-HHmm.zip`).
 
@@ -47,11 +49,12 @@ If you already loaded an older build, click **Reload** on `chrome://extensions`,
 
 ## Export
 
-The zip contains three CSVs (one table each):
+The zip contains `adga-genetics.json` and three CSVs (one table each):
 
-- `individuals.csv` — one row per **ADGA registration ID** (`PD2237546`, not Genetics `D002237546`); `sire_registration` / `dam_registration` only (no parent names). `title` is SG/SGCH/CH/GCH. Identity pane FS, condensed majors, and appraisal age go on this row. Pedigree creates a stub for every animal in the visible tree.
+- `adga-genetics.json` — format id, `formatVersion` (1), exporter version, and file row counts.
+- `individuals.csv` — one row per **ADGA registration ID** (`PD2237546`, not Genetics `D002237546`); `sire_registration` / `dam_registration` only (no parent names). `title` is SG/SGCH/CH/GCH. Identity pane FS, condensed majors, and appraisal age go on this row. `owner_id` is the ADGA member ID when the animal appears on Genetics **Owned by me** (empty = unknown). Also reserved: tattoos, EID, ears, horns, conforms, description, status, breeder, breeding method, Format 1, goat id (filled later from app.adga.org Identity). Pedigree creates a stub for every animal in the visible tree.
 - `linear_appraisals.csv` — one row per Linear History event: registration, registered name, linear scores, structural letters, GA/DS/BC/MS, final score, miscellaneous codes.
-- `pti.csv` — one row per registration: registered name, `pti21`, `pti12`, `eta21`, `eta12`.
+- `pti.csv` — one row per registration per scrape-season: registered name, `pti21`, `pti12`, `eta21`, `eta12`, `captured_at` (maps to August or December).
 
 Opening Pedigree creates a stub row for every animal in the visible tree (name, registration, parent registrations). Visiting that animal later fills breed, DOB, LA, and PTI. Empty cells are not overwritten.
 

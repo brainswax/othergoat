@@ -1,6 +1,10 @@
 import {
+  EXPORTER_NAME,
+  FORMAT_ID,
+  FORMAT_VERSION,
   INDIVIDUAL_COLUMNS,
   LINEAR_COLUMNS,
+  MANIFEST_FILE,
   PTI_COLUMNS,
   STORE_FILES,
 } from "./schema.js";
@@ -50,9 +54,42 @@ function withRegisteredNames(lists) {
   };
 }
 
-export function storeToZipFiles(lists) {
+export function buildExportManifest(lists, meta = {}) {
+  return {
+    format: FORMAT_ID,
+    formatVersion: FORMAT_VERSION,
+    exportedAt: meta.exportedAt || new Date().toISOString(),
+    exporter: {
+      name: EXPORTER_NAME,
+      version: String(meta.exporterVersion ?? ""),
+    },
+    files: [
+      {
+        name: STORE_FILES.individuals,
+        kind: "individuals",
+        rows: (lists?.individuals ?? []).length,
+      },
+      {
+        name: STORE_FILES.linear,
+        kind: "linear_appraisals",
+        rows: (lists?.linear ?? []).length,
+      },
+      {
+        name: STORE_FILES.pti,
+        kind: "pti",
+        rows: (lists?.pti ?? []).length,
+      },
+    ],
+  };
+}
+
+export function storeToZipFiles(lists, meta = {}) {
   const named = withRegisteredNames(lists);
   return [
+    {
+      name: MANIFEST_FILE,
+      text: `${JSON.stringify(buildExportManifest(named, meta), null, 2)}\n`,
+    },
     {
       name: STORE_FILES.individuals,
       text: recordsToCsv(named.individuals ?? [], INDIVIDUAL_COLUMNS),
@@ -92,8 +129,8 @@ export function storeToCsvBlob(lists, kind) {
   return new Blob([text], { type: "text/csv;charset=utf-8" });
 }
 
-export function storeToZipBlob(lists) {
-  return zipStore(storeToZipFiles(lists));
+export function storeToZipBlob(lists, meta = {}) {
+  return zipStore(storeToZipFiles(lists, meta));
 }
 
 export function exportFilename(when = new Date()) {

@@ -6,6 +6,7 @@ import {
   emptyIndividual,
   emptyStore,
 } from "./schema.js";
+import { ptiEvalFromCapturedAt } from "./pti.js";
 import { identityKey } from "./registration.js";
 
 export { identityKey };
@@ -39,8 +40,11 @@ export function linearKey(row) {
   return `${reg}|${date || age || "_"}`;
 }
 
-export function ptiKey(row) {
-  return String(row?.registration_number ?? "").trim();
+export function ptiKey(row, now = new Date()) {
+  const reg = String(row?.registration_number ?? "").trim();
+  if (!reg) return "";
+  const { evalYear, evalMonth } = ptiEvalFromCapturedAt(row?.captured_at, now);
+  return `${reg}|${evalYear}|${evalMonth}`;
 }
 
 /** Identity page beats progeny table; both beat pedigree name colors. */
@@ -138,6 +142,19 @@ export function mergeBatch(store, batch) {
   return { individuals, linear: linearNext, pti: ptiNext };
 }
 
+/** Re-key stored PTI rows (registration-only keys → registration|year|month). */
+export function normalizeStore(store) {
+  const src = store && typeof store === "object" ? store : emptyStore();
+  return mergeBatch(
+    {
+      individuals: src.individuals ?? {},
+      linear: src.linear ?? {},
+      pti: {},
+    },
+    { pti: Object.values(src.pti ?? {}) },
+  );
+}
+
 function setComplete(individuals, registration, field) {
   const row = ensureIndividual(individuals, registration);
   if (row) row[field] = true;
@@ -202,10 +219,23 @@ export function removeRow(store, kind, key) {
   }
   if (kind === "pti") {
     const hit =
-      Object.keys(next.pti).find((item) => sameAnimal(item, want)) ?? want;
+      next.pti[want] != null
+        ? want
+        : (Object.keys(next.pti).find((item) => {
+            const row = next.pti[item];
+            return (
+              sameAnimal(row?.registration_number, want) ||
+              sameAnimal(item.split("|")[0], want)
+            );
+          }) ?? want);
     const row = next.pti[hit];
     delete next.pti[hit];
-    clearComplete(next.individuals, row?.registration_number ?? want, "pti_complete");
+    const still = Object.values(next.pti).some((item) =>
+      sameAnimal(item.registration_number, row?.registration_number ?? want),
+    );
+    if (!still) {
+      clearComplete(next.individuals, row?.registration_number ?? want, "pti_complete");
+    }
     return next;
   }
 

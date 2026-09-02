@@ -5,6 +5,7 @@ import {
   storeToZipBlob,
 } from "./csv.js";
 import { linearKey, ptiKey } from "./merge.js";
+import { ptiEvalFromCapturedAt, ptiEvalLabel } from "./pti.js";
 import { goatDetailUrl, identityKey } from "./registration.js";
 import {
   DEFAULT_SETTINGS,
@@ -27,7 +28,7 @@ const EMPTY_COPY = {
     "Visit goat detail pages on genetics.adga.org. Captured animals appear here. Opening Pedigree, Progeny, or Linear History on the same page adds more rows.",
   linear:
     "Open Linear History on a goat you already captured. Appraisal rows appear here.",
-  pti: "PTI and ETA from the left pane are captured when you visit a goat detail page.",
+  pti: "PTI and ETA from the left pane are captured when you visit a goat detail page. A later scrape in a new August or December season adds another row.",
   search: "No captured rows match that search.",
 };
 
@@ -380,6 +381,7 @@ function animalSummary(row) {
     (row.title ?? "").trim().toUpperCase(),
     row.date_of_birth,
     (row.herdbook ?? "").trim().toUpperCase(),
+    row.owner_id ? `owner ${row.owner_id}` : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -424,6 +426,15 @@ function animalSearchParts(row) {
     row.linear_final_score,
     row.linear_majors,
     row.linear_age,
+    row.owner_id,
+    row.owner_name,
+    row.breeder_id,
+    row.tattoo_re,
+    row.tattoo_le,
+    row.description,
+    row.status,
+    row.format_1,
+    row.goat_id,
   ];
 }
 
@@ -445,10 +456,16 @@ function linearSearchParts(row, nameOf) {
   ];
 }
 
+function ptiSeasonLabel(row) {
+  const evalInfo = ptiEvalFromCapturedAt(row.captured_at);
+  return ptiEvalLabel(evalInfo.evalYear, evalInfo.evalMonth);
+}
+
 function ptiSearchParts(row, nameOf) {
   return [
     nameOf(row.registration_number),
     row.registration_number,
+    ptiSeasonLabel(row),
     row.pti21,
     row.pti12,
     row.eta21,
@@ -519,7 +536,11 @@ function renderPti(pti, nameOf, individuals, linear) {
           sourceUrl: row.source_url,
           focusKey: key,
         }),
-        metaRow(row.registration_number || "", "pti", ptiKey(row)),
+        metaRow(
+          [row.registration_number, ptiSeasonLabel(row)].filter(Boolean).join(" · "),
+          "pti",
+          ptiKey(row),
+        ),
         scores ? el("div", "scores", scores) : null,
       ],
       key,
@@ -720,7 +741,13 @@ downloadBtn.addEventListener("click", async () => {
   ) {
     return;
   }
-  downloadBlob(storeToZipBlob(store), exportFilename());
+  downloadBlob(
+    storeToZipBlob(store, {
+      exportedAt: new Date().toISOString(),
+      exporterVersion: chrome.runtime.getManifest().version,
+    }),
+    exportFilename(),
+  );
 });
 
 clearBtn.addEventListener("click", async () => {

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   detectView,
   extractFromSnapshot,
+  extractOwnedByMeSnapshot,
+  isOwnedByMePage,
+  memberIdFromPage,
   parseBreedPercent,
   parseDobAndAppraisal,
   parseHeading,
@@ -12,14 +15,26 @@ import {
 } from "../extension/extract.js";
 import {
   emptyStore,
+  FORMAT_ID,
+  FORMAT_VERSION,
   LINEAR_COLUMNS,
+  MANIFEST_FILE,
   PTI_COLUMNS,
   INDIVIDUAL_COLUMNS,
   isIndividualComplete,
   scrapeStatus,
 } from "../extension/schema.js";
-import { mergeBatch, linearKey, removeRow, storeAsLists } from "../extension/merge.js";
 import {
+  mergeBatch,
+  linearKey,
+  normalizeStore,
+  ptiKey,
+  removeRow,
+  storeAsLists,
+} from "../extension/merge.js";
+import { suggestedPtiEval } from "../extension/pti.js";
+import {
+  buildExportManifest,
   csvExportFilename,
   exportFilename,
   recordsToCsv,
@@ -971,7 +986,9 @@ describe("merge", () => {
     assert.equal(next.individuals.PD2237546.registered_name, "KEEP");
     assert.equal(Object.keys(next.linear).length, 2);
     assert.equal(Object.keys(next.pti).length, 2);
-    assert.ok(next.pti.PN1352104);
+    assert.ok(
+      Object.values(next.pti).some((row) => row.registration_number === "PN1352104"),
+    );
   });
 
   it("removes a single LA row without dropping the animal", () => {
@@ -1063,7 +1080,7 @@ describe("csv zip", () => {
     });
     assert.deepEqual(
       files.map((f) => f.name),
-      ["individuals.csv", "linear_appraisals.csv", "pti.csv"],
+      [MANIFEST_FILE, "individuals.csv", "linear_appraisals.csv", "pti.csv"],
     );
   });
 
@@ -1103,5 +1120,188 @@ describe("csv zip", () => {
     assert.equal(bytes[1], 0x4b);
     assert.equal(bytes[2], 0x03);
     assert.equal(bytes[3], 0x04);
+  });
+
+  it("writes adga-genetics.json with format version and file row counts", () => {
+    const files = storeToZipFiles(
+      {
+        individuals: [{ registration_number: "N1" }, { registration_number: "N2" }],
+        linear: [{ registration_number: "N1", appraisal_date: "2025" }],
+        pti: [{ registration_number: "N1", pti21: "40" }],
+      },
+      { exportedAt: "2026-09-02T12:00:00.000Z", exporterVersion: "0.2.47" },
+    );
+    const raw = files.find((file) => file.name === MANIFEST_FILE).text;
+    const manifest = JSON.parse(raw);
+    assert.equal(manifest.format, FORMAT_ID);
+    assert.equal(manifest.formatVersion, FORMAT_VERSION);
+    assert.equal(manifest.exportedAt, "2026-09-02T12:00:00.000Z");
+    assert.equal(manifest.exporter.name, "other-goats-records");
+    assert.equal(manifest.exporter.version, "0.2.47");
+    assert.deepEqual(
+      manifest.files.map((file) => [file.name, file.kind, file.rows]),
+      [
+        ["individuals.csv", "individuals", 2],
+        ["linear_appraisals.csv", "linear_appraisals", 1],
+        ["pti.csv", "pti", 1],
+      ],
+    );
+    assert.equal(buildExportManifest({ individuals: [], linear: [], pti: [] }).formatVersion, 1);
+  });
+
+  it("includes owner_id on individuals.csv", () => {
+    assert.ok(INDIVIDUAL_COLUMNS.includes("owner_id"));
+    assert.ok(INDIVIDUAL_COLUMNS.includes("tattoo_re"));
+    assert.ok(INDIVIDUAL_COLUMNS.includes("format_1"));
+    const csv = recordsToCsv(
+      [{ registration_number: "PN1352104", owner_id: "1234567" }],
+      INDIVIDUAL_COLUMNS,
+    );
+    assert.match(
+      csv,
+      /sire_registration,dam_registration,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,goat_id,source_url/,
+    );
+    assert.match(csv, /PN1352104,.*,1234567,/);
+  });
+});
+
+describe("pti seasons", () => {
+  it("maps scrape dates to August or December", () => {
+    assert.deepEqual(suggestedPtiEval(new Date("2026-09-02T12:00:00Z")), {
+      evalYear: 2026,
+      evalMonth: "AUGUST",
+    });
+    assert.deepEqual(suggestedPtiEval(new Date("2026-12-15T12:00:00Z")), {
+      evalYear: 2026,
+      evalMonth: "DECEMBER",
+    });
+    assert.deepEqual(suggestedPtiEval(new Date("2026-03-01T12:00:00Z")), {
+      evalYear: 2025,
+      evalMonth: "DECEMBER",
+    });
+  });
+
+  it("keeps one PTI row per registration per season", () => {
+    const first = mergeBatch(emptyStore(), {
+      pti: [
+        {
+          registration_number: "PD2237546",
+          pti21: "40",
+          captured_at: "2026-03-01T12:00:00.000Z",
+        },
+      ],
+    });
+    const second = mergeBatch(first, {
+      pti: [
+        {
+          registration_number: "PD2237546",
+          pti21: "41",
+          captured_at: "2026-03-20T12:00:00.000Z",
+        },
+        {
+          registration_number: "PD2237546",
+          pti21: "55",
+          captured_at: "2026-09-02T12:00:00.000Z",
+        },
+      ],
+    });
+    assert.equal(Object.keys(second.pti).length, 2);
+    assert.equal(second.pti[ptiKey({ registration_number: "PD2237546", captured_at: "2026-03-01T12:00:00.000Z" })].pti21, "41");
+    assert.equal(second.pti[ptiKey({ registration_number: "PD2237546", captured_at: "2026-09-02T12:00:00.000Z" })].pti21, "55");
+  });
+
+  it("re-keys a registration-only stored PTI row", () => {
+    const store = normalizeStore({
+      individuals: {},
+      linear: {},
+      pti: {
+        PD2237546: {
+          registration_number: "PD2237546",
+          pti21: "40",
+          captured_at: "2026-09-02T12:00:00.000Z",
+        },
+      },
+    });
+    const key = ptiKey({
+      registration_number: "PD2237546",
+      captured_at: "2026-09-02T12:00:00.000Z",
+    });
+    assert.equal(store.pti[key].pti21, "40");
+    assert.equal(store.pti.PD2237546, undefined);
+  });
+
+  it("removing one season keeps the other and PTI complete", () => {
+    const store = mergeBatch(emptyStore(), {
+      individuals: [{ registration_number: "PD2237546" }],
+      pti: [
+        {
+          registration_number: "PD2237546",
+          pti21: "10",
+          captured_at: "2026-03-01T12:00:00.000Z",
+        },
+        {
+          registration_number: "PD2237546",
+          pti21: "20",
+          captured_at: "2026-09-02T12:00:00.000Z",
+        },
+      ],
+      subjectRegistration: "PD2237546",
+      ptiComplete: true,
+    });
+    const drop = ptiKey({
+      registration_number: "PD2237546",
+      captured_at: "2026-03-01T12:00:00.000Z",
+    });
+    const next = removeRow(store, "pti", drop);
+    assert.equal(Object.keys(next.pti).length, 1);
+    assert.equal(next.individuals.PD2237546.pti_complete, true);
+  });
+});
+
+describe("owned by me", () => {
+  const ownedPage = {
+    url: "https://genetics.adga.org/OwnedByMe.aspx",
+    title: "Owned by me",
+    text: "Owned by me\nMember ID: 1234567",
+    links: [
+      {
+        href: "GoatDetail.aspx?RegNumber=D002237546",
+        text: "TWIN WILLOWS AL KARAMELLO",
+      },
+    ],
+    tables: [],
+  };
+
+  it("detects the page and member ID", () => {
+    assert.equal(isOwnedByMePage(ownedPage), true);
+    assert.equal(memberIdFromPage(ownedPage), "1234567");
+    assert.equal(isOwnedByMePage({ url: SAMPLE_URL, title: "Goat Detail", text: "" }), false);
+  });
+
+  it("fills owner_id on listed animals and does not invent it on GoatDetail", () => {
+    const batch = extractOwnedByMeSnapshot(ownedPage, "2026-09-02T12:00:00.000Z");
+    assert.equal(batch.view, "owned");
+    assert.equal(batch.individuals.length, 1);
+    assert.equal(batch.individuals[0].registration_number, "D2237546");
+    assert.equal(batch.individuals[0].owner_id, "1234567");
+    assert.equal(batch.individuals[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
+    const goat = extractFromSnapshot({
+      url: SAMPLE_URL,
+      title: "SG ALDER*GLEN TRES BONNE 3*M - N001352104 (PB Doe)",
+      text: PEDIGREE_TEXT,
+      links: PEDIGREE_LINKS,
+      tables: [],
+    });
+    assert.equal(goat.individuals[0].owner_id, "");
+  });
+
+  it("does not clear a filled owner_id with a later blank", () => {
+    const first = mergeBatch(emptyStore(), {
+      individuals: [{ registration_number: "PD2237546", owner_id: "1234567" }],
+    });
+    const second = mergeBatch(first, {
+      individuals: [{ registration_number: "PD2237546", owner_id: "" }],
+    });
+    assert.equal(second.individuals.PD2237546.owner_id, "1234567");
   });
 });

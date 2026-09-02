@@ -957,9 +957,66 @@ function subjectFromPage(page, registration, capturedAt) {
   return row;
 }
 
+export function isOwnedByMePage(page) {
+  const url = String(page?.url ?? "");
+  const blob = `${page?.title ?? ""}\n${page?.text ?? ""}`;
+  if (/OwnedByMe|MyAnimals|MyGoats/i.test(url)) return true;
+  return /\bowned by me\b/i.test(blob);
+}
+
+export function memberIdFromPage(page) {
+  const blob = `${page?.title ?? ""}\n${page?.text ?? ""}`;
+  const labeled = blob.match(
+    /(?:member(?:ship)?\s*id|owner\s*id)\s*[:#]?\s*(\d{4,8})/i,
+  );
+  return labeled ? labeled[1] : "";
+}
+
+function ownedStubsFromPage(page, ownerId, capturedAt) {
+  const seen = new Set();
+  const rows = [];
+  const add = (registration, name) => {
+    const paper = toAdgaRegistration(registration);
+    const key = identityKey(paper);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const row = emptyIndividual();
+    row.registration_number = paper;
+    applyRegisteredName(row, name);
+    row.owner_id = ownerId;
+    row.source_url = page.url ?? "";
+    row.captured_at = capturedAt;
+    rows.push(row);
+  };
+  for (const link of goatLinks(page.links)) {
+    add(link.registration, link.text);
+  }
+  for (const table of page.tables ?? []) {
+    for (const cells of table.rows ?? []) {
+      const joined = cells.map((cell) => collapse(cell)).join(" ");
+      const match = joined.match(REG_IN_TEXT);
+      if (!match) continue;
+      add(match[0], cells[0] ?? "");
+    }
+  }
+  return rows;
+}
+
+export function extractOwnedByMeSnapshot(page, capturedAt = "", settings = {}) {
+  if (!isOwnedByMePage(page)) return null;
+  const opts = normalizeSettings(settings);
+  const batch = emptyBatch();
+  batch.view = "owned";
+  if (!opts.recordIndividuals) return batch;
+  const ownerId = memberIdFromPage(page);
+  batch.individuals.push(...ownedStubsFromPage(page, ownerId, capturedAt));
+  if (batch.individuals.length === 0) return null;
+  return convertBatch(batch);
+}
+
 export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
   const registration = registrationFromUrl(page.url ?? "");
-  if (!registration) return null;
+  if (!registration) return extractOwnedByMeSnapshot(page, capturedAt, settings);
   const opts = normalizeSettings(settings);
   const view = detectView(page);
   const batch = emptyBatch();

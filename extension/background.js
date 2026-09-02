@@ -1,5 +1,5 @@
 import { emptyStore } from "./schema.js";
-import { mergeBatch, removeRow, storeAsLists } from "./merge.js";
+import { mergeBatch, normalizeStore, removeRow, storeAsLists } from "./merge.js";
 
 const STORE_KEY = "store";
 const PAUSED_KEY = "paused";
@@ -29,11 +29,7 @@ async function loadStore() {
   const data = await chrome.storage.local.get(STORE_KEY);
   const store = data[STORE_KEY];
   if (!store || typeof store !== "object") return emptyStore();
-  return {
-    individuals: store.individuals ?? {},
-    linear: store.linear ?? {},
-    pti: store.pti ?? {},
-  };
+  return normalizeStore(store);
 }
 
 function badgeText(count) {

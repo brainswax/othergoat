@@ -1,4 +1,9 @@
-/** Locked first-round export columns. Join tables on registration_number. */
+/** Locked export columns. Join tables on registration_number. */
+
+export const FORMAT_ID = "adga-genetics-export";
+export const FORMAT_VERSION = 1;
+export const MANIFEST_FILE = "adga-genetics.json";
+export const EXPORTER_NAME = "other-goats-records";
 
 export const INDIVIDUAL_COLUMNS = [
   "registration_number",
@@ -16,6 +21,25 @@ export const INDIVIDUAL_COLUMNS = [
   "linear_age",
   "sire_registration",
   "dam_registration",
+  "owner_id",
+  "owner_name",
+  "breeder_id",
+  "breeder_name",
+  "tattoo_re",
+  "tattoo_le",
+  "tattoo_comment",
+  "eid",
+  "eid_location",
+  "ears",
+  "horns",
+  "conforms",
+  "description",
+  "status",
+  "breeding_method",
+  "application_id",
+  "file_app_id",
+  "format_1",
+  "goat_id",
   "source_url",
   "captured_at",
   "notes",

@@ -8,7 +8,7 @@ The extension does not contact any server.
 
 ## 1. Overview
 
-A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by registration number. The user downloads a zip of three CSVs: individuals, linear appraisals, and PTI/ETA.
+A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by registration number. The user downloads a zip of `adga-genetics.json` plus three CSVs: individuals, linear appraisals, and PTI/ETA.
 
 ## 2. Goals
 
@@ -42,7 +42,7 @@ Merge:
 
 - Individual key: ADGA registration ID (not Genetics `RegNumber`). `D002237546` + PB → `PD2237546`. Later non-empty field values replace earlier ones; blanks do not clobber. Polled/black are an exception: the animal’s own GoatDetail identity pane outranks a progeny `IsPolled`/`IsBlack` cell, which outranks pedigree name colors. A later identity visit overwrites an earlier pedigree guess; pedigree colors never overwrite identity.
 - LA key: `registration_number` + `appraisal_date` (or `age` if no date).
-- PTI key: `registration_number`.
+- PTI key (today): `registration_number` — one current row; later non-empty values overwrite. **Todo (historic PTI):** key by `registration_number` + the August/December eval implied by `captured_at` so a goat can have several rows.
 
 Popup lists unique individuals and downloads the zip. Clear wipes the local store.
 
@@ -52,15 +52,27 @@ Popup lists unique individuals and downloads the zip. Clear wipes the local stor
 
 One download: `adga-genetics-export-YYYY-MM-DD-HHmm.zip`
 
-A CSV is one table. Multiple tables are separate files in the zip.
+A CSV is one table. Multiple tables are separate files in the zip. **`adga-genetics.json`** is the format manifest (`formatVersion` 1). Extra CSV columns stay backward compatible without a bump. Bump `formatVersion` only when meaning changes (file rename, PTI grain, required new file).
+
+### adga-genetics.json
+
+```
+format, formatVersion, exportedAt, exporter { name, version }, files [{ name, kind, rows }]
+```
+
+`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Goatsmith M6.6 reads this when present; missing manifest still parses the three CSVs (loose upload).
 
 ### individuals.csv
 
 One row per registration.
 
 ```
-registration_number,registered_name,title,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,linear_majors,linear_age,sire_registration,dam_registration,source_url,captured_at,notes
+registration_number,registered_name,title,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,linear_majors,linear_age,sire_registration,dam_registration,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,goat_id,source_url,captured_at,notes
 ```
+
+**`owner_id`:** ADGA membership ID. Fill it when the animal appears on Genetics **Owned by me**, or later from app.adga.org **Owner**. That is the only roster assignment. **Empty or omitted = unknown** — catalog-only, not the importer’s herd, not “this goat is unclaimed.” Do not unclaim a claimed animal because the column is blank. Do not invent `owner_id` from a Genetics GoatDetail visit.
+
+**app.adga.org Identity (columns locked; scrape later):** `owner_name`, `breeder_id`, `breeder_name`, `tattoo_re`, `tattoo_le`, `tattoo_comment`, `eid`, `eid_location`, `ears`, `horns`, `conforms`, `description`, `status`, `breeding_method`, `application_id`, `file_app_id`, `format_1` (ICAR/CDCB id, e.g. `NDUSA000002495341`), `goat_id` (numeric). Store `horns` as ADGA shows it (`POLLED`, `DISBUDDED`, `HORNED`, …). `Horns: POLLED` also fills empty `polled` as Y. `DISBUDDED` / `HORNED` do not. Do not overwrite a filled `polled`. `description` is free text (e.g. BUCKSKIN), not the Genetics coat-pattern flags. Parent names and parent-owner boxes belong on the parent’s own row. Photo is out of the CSV.
 
 Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #. `title` is SG / SGCH / CH / GCH when that prefix is on the name. `linear_final_score`, `linear_majors`, and `linear_age` come from the identity pane (`FS84 (+V++) @ 01-03`).
 
@@ -80,11 +92,13 @@ registration_number,registered_name,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,
 
 ### pti.csv
 
-One row per registration. The left pane always has four slots (empty if not published).
+One row per registration per CDCB season. The left pane always has four slots (empty if not published).
 
 ```
 registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_at
 ```
+
+Map `captured_at` (scrape date) to August or December (Jan–Jul → prior December; Aug–Nov → August that year; Dec → December that year). Same-season merge updates the four numbers; a scrape after the next drop is a new row. Do not invent a third season. Goatsmith import (**M6.10**) upserts by that eval.
 
 ---
 
@@ -93,7 +107,7 @@ registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_
 1. Browse ADGA Genetics normally (Pedigree, Progeny, Linear History, evals).
 2. Extension merges whatever is on the page.
 3. Open the popup → **Download zip**.
-4. Open the three CSVs in a spreadsheet.
+4. Open the three CSVs (and the JSON manifest) in a spreadsheet or editor.
 
 ---
 
@@ -112,7 +126,7 @@ registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_
 
 Collect as the user browses. Parse the DOM after they open a view. Do not POST.
 
-Acceptance: Browse several animals and views → popup lists unique registrations → zip contains `individuals.csv`, `linear_appraisals.csv`, and `pti.csv` with merged partial rows.
+Acceptance: Browse several animals and views → popup lists unique registrations → zip contains `adga-genetics.json`, `individuals.csv`, `linear_appraisals.csv`, and `pti.csv` with merged partial rows.
 
 ### 2 – Active individual (not this pass)
 
@@ -121,6 +135,20 @@ User points at one registration. The extension fires the site’s own postbacks 
 ### 3 – Active family (not this pass)
 
 After (2), POST-walk **direct** progeny, siblings, and parents (not the whole tree). For each of those registrations, collect the same individual payload as (2). End goal: pick a buck, pull the family.
+
+### Historic PTI/ETA (**done** in format v1)
+
+Keep **multiple** PTI/ETA records for the same animal when scrapes fall in different semi-annual updates (CDCB yield: August and December). Derive the eval from `captured_at`. Merge key: registration + eval year + August|December. Same-season re-visit updates that snapshot. Export every stored snapshot.
+
+### Later — scrape app.adga.org Goat Details (Identity)
+
+Columns are in `individuals.csv`. Do not capture `app.adga.org` until this item. Genetics GoatDetail stays the current fill path.
+
+### `owner_id` / Owned by me (**format locked**; fill from Owned by me)
+
+`owner_id` is on the individual row (ADGA member ID). Capture Genetics **Owned by me** so we know which membership owns the animal. GoatDetail visits do not set it.
+
+Empty or omitted `owner_id` is **unknown** (stubs, other people’s goats, pages that are not Owned by me). Create **catalog-only** — do not add the row to the importer’s working herd. It is not an unclaim. Goatsmith must not treat a blank as “unclaimed” and must not clear an existing claim. Only a **present** `owner_id` asserts a membership and puts the goat on that herd.
 
 ---
 
