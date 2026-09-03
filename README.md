@@ -18,11 +18,11 @@ The zip is **`manifestVersion` 1.0**: `manifest.json` plus the three CSVs (each 
 
 ## Install
 
-Until this is on the Chrome Web Store, install **0.2.47** from GitHub:
+Until this is on the Chrome Web Store, install **0.2.52** from GitHub:
 
-**[Download Other Goats Records 0.2.47](https://github.com/brainswax/othergoat/releases/download/v0.2.47/other-goats-records-0.2.47.zip)**
+**[Download Other Goats Records 0.2.52](https://github.com/brainswax/othergoat/releases/download/v0.2.52/other-goats-records-0.2.52.zip)**
 
-([0.2.47 release](https://github.com/brainswax/othergoat/releases/tag/v0.2.47) · [All releases](https://github.com/brainswax/othergoat/releases))
+([0.2.52 release](https://github.com/brainswax/othergoat/releases/tag/v0.2.52) · [All releases](https://github.com/brainswax/othergoat/releases))
 
 1. Unzip the file. You should get a folder named `other-goats-records-…` that contains `manifest.json`.
 2. In Chrome, open `chrome://extensions`.
