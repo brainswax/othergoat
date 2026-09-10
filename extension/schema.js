@@ -1,4 +1,4 @@
-/** Locked export columns. Join on `goat_id` (ADGA serial digits). */
+/** Locked export columns. Join on `goat_id` (ADGA serial). Paper is `adga_reg`; Genetics is `adga_genetics_id`. */
 
 export const FORMAT_ID = "adga-genetics-export";
 /** Condensed semver `major.patch`. Same major is compatible. */
@@ -12,8 +12,9 @@ export function parseFileVersion(value) {
 }
 
 export const INDIVIDUAL_COLUMNS = [
-  "registration_number",
-  "reg_number",
+  "adga_reg",
+  "adga_genetics_id",
+  "goat_id",
   "registered_name",
   "title",
   "breed",
@@ -26,11 +27,11 @@ export const INDIVIDUAL_COLUMNS = [
   "linear_final_score",
   "linear_majors",
   "linear_age",
-  "sire_registration",
-  "sire_reg_number",
+  "sire_adga_reg",
+  "sire_adga_genetics_id",
   "sire_goat_id",
-  "dam_registration",
-  "dam_reg_number",
+  "dam_adga_reg",
+  "dam_adga_genetics_id",
   "dam_goat_id",
   "owner_id",
   "owner_name",
@@ -50,7 +51,6 @@ export const INDIVIDUAL_COLUMNS = [
   "application_id",
   "file_app_id",
   "format_1",
-  "goat_id",
   "source_url",
   "captured_at",
   "notes",
@@ -99,15 +99,13 @@ export function compareIndividuals(a, b) {
     String(b.registered_name ?? ""),
   );
   if (name !== 0) return name;
-  return String(a.registration_number ?? "").localeCompare(
-    String(b.registration_number ?? ""),
-  );
+  return String(a.adga_reg ?? "").localeCompare(String(b.adga_reg ?? ""));
 }
 
 /** Same groups as Genetics Linear History / LA reports. */
 export const LINEAR_COLUMNS = [
-  "registration_number",
-  "reg_number",
+  "adga_reg",
+  "adga_genetics_id",
   "goat_id",
   "registered_name",
   "appraisal_date",
@@ -169,8 +167,8 @@ export const LA_TRAIT_KEYS = [
 ];
 
 export const PTI_COLUMNS = [
-  "registration_number",
-  "reg_number",
+  "adga_reg",
+  "adga_genetics_id",
   "goat_id",
   "registered_name",
   "pti21",
@@ -189,10 +187,37 @@ export const STORE_FILES = {
 
 /** `major.patch`. Patch = additive. Major = breaking. Same major is compatible. */
 export const FILE_VERSIONS = {
-  individuals: "1.2",
-  linear: "1.2",
-  pti: "1.2",
+  individuals: "2.0",
+  linear: "2.0",
+  pti: "2.0",
 };
+
+/** Older CSV / store keys → current identity columns. */
+const IDENTITY_ALIASES = {
+  adga_reg: ["registration_number"],
+  adga_genetics_id: ["adga_genetics_reg", "reg_number"],
+  sire_adga_reg: ["sire_registration"],
+  sire_adga_genetics_id: ["sire_adga_genetics_reg", "sire_reg_number"],
+  dam_adga_reg: ["dam_registration"],
+  dam_adga_genetics_id: ["dam_adga_genetics_reg", "dam_reg_number"],
+};
+
+export function normalizeIdentityRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const next = { ...row };
+  for (const [canonical, aliases] of Object.entries(IDENTITY_ALIASES)) {
+    if (!String(next[canonical] ?? "").trim()) {
+      for (const alias of aliases) {
+        if (String(next[alias] ?? "").trim()) {
+          next[canonical] = next[alias];
+          break;
+        }
+      }
+    }
+    for (const alias of aliases) delete next[alias];
+  }
+  return next;
+}
 
 export function emptyIndividual() {
   return Object.fromEntries(INDIVIDUAL_COLUMNS.map((key) => [key, ""]));

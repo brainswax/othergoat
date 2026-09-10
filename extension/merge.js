@@ -5,6 +5,7 @@ import {
   compareIndividuals,
   emptyIndividual,
   emptyStore,
+  normalizeIdentityRow,
 } from "./schema.js";
 import { ptiEvalFromCapturedAt } from "./pti.js";
 import {
@@ -26,16 +27,16 @@ function mergeRow(existing, incoming, columns, opts = {}) {
   const next = { ...(existing ?? {}) };
   const lockParents = Boolean(opts.lockParents);
   for (const key of columns) {
-    if (key === "registration_number") {
+    if (key === "adga_reg") {
       next[key] = incoming[key] || existing?.[key] || "";
       continue;
     }
     if (
       lockParents &&
-      (key === "sire_registration" ||
-        key === "dam_registration" ||
-        key === "sire_reg_number" ||
-        key === "dam_reg_number" ||
+      (key === "sire_adga_reg" ||
+        key === "dam_adga_reg" ||
+        key === "sire_adga_genetics_id" ||
+        key === "dam_adga_genetics_id" ||
         key === "sire_goat_id" ||
         key === "dam_goat_id") &&
       filled(existing?.[key])
@@ -51,9 +52,9 @@ function mergeRow(existing, incoming, columns, opts = {}) {
 
 export function individualKey(row) {
   return (
-    toGeneticsRegNumber(row?.reg_number || row?.registration_number) ||
-    toAdgaSerial(row?.goat_id || row?.reg_number || row?.registration_number) ||
-    String(row?.reg_number || row?.registration_number || row?.goat_id || "").trim()
+    toGeneticsRegNumber(row?.adga_genetics_id || row?.adga_reg) ||
+    toAdgaSerial(row?.goat_id || row?.adga_genetics_id || row?.adga_reg) ||
+    String(row?.adga_genetics_id || row?.adga_reg || row?.goat_id || "").trim()
   );
 }
 
@@ -62,7 +63,7 @@ function geneticsOf(value) {
 }
 
 export function linearKey(row) {
-  const reg = geneticsOf(row?.reg_number || row?.registration_number);
+  const reg = geneticsOf(row?.adga_genetics_id || row?.adga_reg);
   const date = String(row?.appraisal_date ?? "").trim();
   const age = String(row?.age ?? "").trim();
   if (!reg) return "";
@@ -70,7 +71,7 @@ export function linearKey(row) {
 }
 
 export function ptiKey(row, now = new Date()) {
-  const reg = geneticsOf(row?.reg_number || row?.registration_number);
+  const reg = geneticsOf(row?.adga_genetics_id || row?.adga_reg);
   if (!reg) return "";
   const { evalYear, evalMonth } = ptiEvalFromCapturedAt(row?.captured_at, now);
   return `${reg}|${evalYear}|${evalMonth}`;
@@ -117,11 +118,27 @@ export function mergePti(existing, incoming) {
  */
 export function mergeBatch(store, batch) {
   const next = store ?? emptyStore();
-  const individuals = { ...(next.individuals ?? {}) };
-  const linear = { ...(next.linear ?? {}) };
-  const pti = { ...(next.pti ?? {}) };
+  const individuals = Object.fromEntries(
+    Object.entries(next.individuals ?? {}).map(([key, row]) => [
+      key,
+      normalizeIdentityRow(row),
+    ]),
+  );
+  const linear = Object.fromEntries(
+    Object.entries(next.linear ?? {}).map(([key, row]) => [
+      key,
+      normalizeIdentityRow(row),
+    ]),
+  );
+  const pti = Object.fromEntries(
+    Object.entries(next.pti ?? {}).map(([key, row]) => [
+      key,
+      normalizeIdentityRow(row),
+    ]),
+  );
 
-  for (const row of batch?.individuals ?? []) {
+  for (const raw of batch?.individuals ?? []) {
+    const row = normalizeIdentityRow(raw);
     const incomingKey = individualKey(row);
     if (!incomingKey) continue;
     const existingKey =
@@ -129,7 +146,7 @@ export function mergeBatch(store, batch) {
         (key) =>
           geneticsOf(key) === incomingKey ||
           identityKey(key) === identityKey(incomingKey) ||
-          geneticsOf(individuals[key]?.reg_number) === incomingKey,
+          geneticsOf(individuals[key]?.adga_genetics_id) === incomingKey,
       ) ?? incomingKey;
     const incomingIsSubject =
       Boolean(batch?.subjectRegistration) &&
@@ -137,18 +154,20 @@ export function mergeBatch(store, batch) {
     const merged = mergeIndividual(individuals[existingKey], row, {
       lockParents: !incomingIsSubject,
     });
-    merged.reg_number = incomingKey;
+    merged.adga_genetics_id = incomingKey;
     if (existingKey && existingKey !== incomingKey) {
       delete individuals[existingKey];
     }
     individuals[incomingKey] = merged;
   }
-  for (const row of batch?.linear ?? []) {
+  for (const raw of batch?.linear ?? []) {
+    const row = normalizeIdentityRow(raw);
     const key = linearKey(row);
     if (!key) continue;
     linear[key] = mergeLinear(linear[key], row);
   }
-  for (const row of batch?.pti ?? []) {
+  for (const raw of batch?.pti ?? []) {
+    const row = normalizeIdentityRow(raw);
     const key = ptiKey(row);
     if (!key) continue;
     pti[key] = mergePti(pti[key], row);
@@ -163,9 +182,9 @@ export function mergeBatch(store, batch) {
       const row = individuals[item];
       return (
         identityKey(item) === identityKey(reg) ||
-        identityKey(row?.registration_number) === identityKey(reg) ||
-        geneticsOf(row?.reg_number) === g ||
-        (serial && toAdgaSerial(row?.goat_id || row?.reg_number) === serial)
+        identityKey(row?.adga_reg) === identityKey(reg) ||
+        geneticsOf(row?.adga_genetics_id) === g ||
+        (serial && toAdgaSerial(row?.goat_id || row?.adga_genetics_id) === serial)
       );
     });
     return key ? individuals[key] : null;
@@ -174,8 +193,8 @@ export function mergeBatch(store, batch) {
     if (!reg) return "";
     const hit = findAnimal(reg);
     const built = hit
-      ? hit.registration_number ||
-        paperIdFromGenetics(hit.reg_number, hit.herdbook)
+      ? hit.adga_reg ||
+        paperIdFromGenetics(hit.adga_genetics_id, hit.herdbook)
       : "";
     if (isPaperRegistration(built)) return toAdgaRegistration(built);
     if (isPaperRegistration(reg)) return toAdgaRegistration(reg);
@@ -184,38 +203,38 @@ export function mergeBatch(store, batch) {
   const canonGenetics = (reg) => {
     if (!reg) return "";
     const hit = findAnimal(reg);
-    return hit?.reg_number || toGeneticsRegNumber(reg) || reg;
+    return hit?.adga_genetics_id || toGeneticsRegNumber(reg) || reg;
   };
   for (const row of Object.values(individuals)) {
-    row.sire_reg_number = canonGenetics(row.sire_reg_number || row.sire_registration);
-    row.dam_reg_number = canonGenetics(row.dam_reg_number || row.dam_registration);
-    row.sire_registration = canonPaper(row.sire_registration || row.sire_reg_number);
-    row.dam_registration = canonPaper(row.dam_registration || row.dam_reg_number);
-    row.goat_id = toAdgaSerial(row.goat_id || row.reg_number || row.registration_number);
-    row.sire_goat_id = toAdgaSerial(row.sire_goat_id || row.sire_reg_number);
-    row.dam_goat_id = toAdgaSerial(row.dam_goat_id || row.dam_reg_number);
+    row.sire_adga_genetics_id = canonGenetics(row.sire_adga_genetics_id || row.sire_adga_reg);
+    row.dam_adga_genetics_id = canonGenetics(row.dam_adga_genetics_id || row.dam_adga_reg);
+    row.sire_adga_reg = canonPaper(row.sire_adga_reg || row.sire_adga_genetics_id);
+    row.dam_adga_reg = canonPaper(row.dam_adga_reg || row.dam_adga_genetics_id);
+    row.goat_id = toAdgaSerial(row.goat_id || row.adga_genetics_id || row.adga_reg);
+    row.sire_goat_id = toAdgaSerial(row.sire_goat_id || row.sire_adga_genetics_id);
+    row.dam_goat_id = toAdgaSerial(row.dam_goat_id || row.dam_adga_genetics_id);
   }
   const linearNext = {};
   for (const row of Object.values(linear)) {
-    const hit = findAnimal(row.reg_number || row.registration_number || row.goat_id);
+    const hit = findAnimal(row.adga_genetics_id || row.adga_reg || row.goat_id);
     if (hit) {
-      row.reg_number = hit.reg_number;
-      row.registration_number = hit.registration_number || row.registration_number;
-      row.goat_id = hit.goat_id || toAdgaSerial(row.reg_number);
+      row.adga_genetics_id = hit.adga_genetics_id;
+      row.adga_reg = hit.adga_reg || row.adga_reg;
+      row.goat_id = hit.goat_id || toAdgaSerial(row.adga_genetics_id);
     } else {
-      row.goat_id = toAdgaSerial(row.goat_id || row.reg_number || row.registration_number);
+      row.goat_id = toAdgaSerial(row.goat_id || row.adga_genetics_id || row.adga_reg);
     }
     linearNext[linearKey(row)] = row;
   }
   const ptiNext = {};
   for (const row of Object.values(pti)) {
-    const hit = findAnimal(row.reg_number || row.registration_number || row.goat_id);
+    const hit = findAnimal(row.adga_genetics_id || row.adga_reg || row.goat_id);
     if (hit) {
-      row.reg_number = hit.reg_number;
-      row.registration_number = hit.registration_number || row.registration_number;
-      row.goat_id = hit.goat_id || toAdgaSerial(row.reg_number);
+      row.adga_genetics_id = hit.adga_genetics_id;
+      row.adga_reg = hit.adga_reg || row.adga_reg;
+      row.goat_id = hit.goat_id || toAdgaSerial(row.adga_genetics_id);
     } else {
-      row.goat_id = toAdgaSerial(row.goat_id || row.reg_number || row.registration_number);
+      row.goat_id = toAdgaSerial(row.goat_id || row.adga_genetics_id || row.adga_reg);
     }
     ptiNext[ptiKey(row)] = row;
   }
@@ -252,13 +271,13 @@ function ensureIndividual(individuals, registration) {
       (item) =>
         geneticsOf(item) === genetics ||
         identityKey(item) === identityKey(want) ||
-        identityKey(individuals[item]?.registration_number) === identityKey(want),
+        identityKey(individuals[item]?.adga_reg) === identityKey(want),
     ) ?? genetics;
   if (!individuals[key]) {
     individuals[key] = {
       ...emptyIndividual(),
-      reg_number: genetics,
-      registration_number: isPaperRegistration(want)
+      adga_genetics_id: genetics,
+      adga_reg: isPaperRegistration(want)
         ? toAdgaRegistration(want)
         : "",
     };
@@ -313,7 +332,7 @@ export function removeRow(store, kind, key) {
     delete next.linear[want];
     clearComplete(
       next.individuals,
-      row?.reg_number || row?.registration_number,
+      row?.adga_genetics_id || row?.adga_reg,
       "linear_complete",
     );
     return next;
@@ -325,7 +344,7 @@ export function removeRow(store, kind, key) {
         : (Object.keys(next.pti).find((item) => {
             const row = next.pti[item];
             return (
-              sameAnimal(row?.reg_number || row?.registration_number, want) ||
+              sameAnimal(row?.adga_genetics_id || row?.adga_reg, want) ||
               sameAnimal(item.split("|")[0], want)
             );
           }) ?? want);
@@ -333,14 +352,14 @@ export function removeRow(store, kind, key) {
     delete next.pti[hit];
     const still = Object.values(next.pti).some((item) =>
       sameAnimal(
-        item.reg_number || item.registration_number,
-        row?.reg_number || row?.registration_number || want,
+        item.adga_genetics_id || item.adga_reg,
+        row?.adga_genetics_id || row?.adga_reg || want,
       ),
     );
     if (!still) {
       clearComplete(
         next.individuals,
-        row?.reg_number || row?.registration_number || want,
+        row?.adga_genetics_id || row?.adga_reg || want,
         "pti_complete",
       );
     }
@@ -351,8 +370,8 @@ export function removeRow(store, kind, key) {
     Object.keys(next.individuals).find(
       (item) =>
         sameAnimal(item, want) ||
-        sameAnimal(next.individuals[item]?.reg_number, want) ||
-        sameAnimal(next.individuals[item]?.registration_number, want),
+        sameAnimal(next.individuals[item]?.adga_genetics_id, want) ||
+        sameAnimal(next.individuals[item]?.adga_reg, want),
     ) ?? want;
   delete next.individuals[hit];
   return next;

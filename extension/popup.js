@@ -77,7 +77,7 @@ function formatCaptured(iso) {
 }
 
 function displayId(row) {
-  return String(row?.registration_number || row?.reg_number || "").trim();
+  return String(row?.adga_reg || row?.adga_genetics_id || "").trim();
 }
 
 function matchId(value) {
@@ -85,7 +85,7 @@ function matchId(value) {
 }
 
 function rowMatchId(row) {
-  return matchId(row?.reg_number || row?.registration_number);
+  return matchId(row?.adga_genetics_id || row?.adga_reg);
 }
 
 function nameLookup(individuals) {
@@ -94,8 +94,8 @@ function nameLookup(individuals) {
   for (const row of individuals) {
     const label = row.registered_name || displayId(row);
     if (!label) continue;
-    const paper = String(row.registration_number ?? "").trim();
-    const genetics = String(row.reg_number ?? "").trim();
+    const paper = String(row.adga_reg ?? "").trim();
+    const genetics = String(row.adga_genetics_id ?? "").trim();
     if (paper) {
       byId.set(paper, label);
       byKey.set(identityKey(paper), label);
@@ -437,8 +437,8 @@ function animalSearchParts(row) {
   return [
     row.registered_name,
     row.title,
-    row.registration_number,
-    row.reg_number,
+    row.adga_reg,
+    row.adga_genetics_id,
     row.date_of_birth,
     row.herdbook,
     row.polled,
@@ -461,8 +461,8 @@ function animalSearchParts(row) {
 function linearSearchParts(row, nameOf) {
   return [
     nameOf(displayId(row)),
-    row.registration_number,
-    row.reg_number,
+    row.adga_reg,
+    row.adga_genetics_id,
     row.appraisal_date,
     row.age,
     row.final_score,
@@ -485,8 +485,8 @@ function ptiSeasonLabel(row) {
 function ptiSearchParts(row, nameOf) {
   return [
     nameOf(displayId(row)),
-    row.registration_number,
-    row.reg_number,
+    row.adga_reg,
+    row.adga_genetics_id,
     ptiSeasonLabel(row),
     row.pti21,
     row.pti12,

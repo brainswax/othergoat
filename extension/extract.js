@@ -447,7 +447,7 @@ function goatLinks(links) {
         text: stripPedigreeLabel(link.text),
         title,
         registration:
-          registrationFromHref(link.href ?? "") || parsed.reg_number,
+          registrationFromHref(link.href ?? "") || parsed.adga_genetics_id,
         herdbook: parsed.herdbook,
         date_of_birth: parsed.date_of_birth,
         color: link.color ?? "",
@@ -562,8 +562,8 @@ function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
   return goatLinks(links).map((link) => {
     const marks = pedigreeFlags(link, skipBlackColor);
     const row = emptyIndividual();
-    row.registration_number = link.registration;
-    row.reg_number = toGeneticsRegNumber(link.registration);
+    row.adga_reg = link.registration;
+    row.adga_genetics_id = toGeneticsRegNumber(link.registration);
     applyRegisteredName(row, stripPedigreeLabel(link.text));
     row.herdbook = link.herdbook || herdbookFromTitle(link.title);
     row.date_of_birth = link.date_of_birth || "";
@@ -588,12 +588,12 @@ function applyParentEdge(byReg, childReg, role, parentReg) {
   if (!childReg || !parentReg) return;
   if (!byReg.has(childReg)) {
     const row = emptyIndividual();
-    row.registration_number = childReg;
+    row.adga_reg = childReg;
     byReg.set(childReg, row);
   }
   const child = byReg.get(childReg);
-  if (role === "sire") child.sire_registration = parentReg;
-  if (role === "dam") child.dam_registration = parentReg;
+  if (role === "sire") child.sire_adga_reg = parentReg;
+  if (role === "dam") child.dam_adga_reg = parentReg;
 }
 
 function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
@@ -601,8 +601,8 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
   for (const node of nodes) {
     if (!byReg.has(node.registration)) {
       const row = emptyIndividual();
-      row.registration_number = node.registration;
-      row.reg_number = toGeneticsRegNumber(node.registration);
+      row.adga_reg = node.registration;
+      row.adga_genetics_id = toGeneticsRegNumber(node.registration);
       applyRegisteredName(row, node.name);
       row.sex = sexFromPedigreeLabel(node.label);
       row.herdbook = node.herdbook ?? "";
@@ -698,8 +698,8 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
         continue;
       }
       const row = emptyIndividual();
-      row.registration_number = registration;
-      row.reg_number = toGeneticsRegNumber(registration);
+      row.adga_reg = registration;
+      row.adga_genetics_id = toGeneticsRegNumber(registration);
       applyRegisteredName(row, name);
       row.herdbook = bookI >= 0 ? collapse(cells[bookI]) : "";
       row.breed = breedI >= 0 ? collapse(cells[breedI]) : "";
@@ -709,8 +709,8 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
       row.black = blackI >= 0 ? polledFromCell(cells[blackI]) || "N" : "";
       if (polledI >= 0) row.polled_from = "progeny";
       if (blackI >= 0) row.black_from = "progeny";
-      if (current.sex === "BUCK") row.sire_registration = current.registration_number;
-      if (current.sex === "DOE") row.dam_registration = current.registration_number;
+      if (current.sex === "BUCK") row.sire_adga_reg = current.adga_reg;
+      if (current.sex === "DOE") row.dam_adga_reg = current.adga_reg;
       row.source_url = sourceUrl;
       row.captured_at = capturedAt;
       individuals.push(row);
@@ -721,7 +721,7 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
 
 function linearFromScoreRow(registration, year, age, scores, extras, capturedAt, sourceUrl) {
   const row = emptyLinear();
-  row.registration_number = registration;
+  row.adga_reg = registration;
   row.appraisal_date = year;
   row.age = age;
   GENETICS_LINEAR_ORDER.forEach((key, index) => {
@@ -743,7 +743,7 @@ function ensureLinearRow(byKey, registration, year, age, capturedAt, sourceUrl) 
   const key = linearRowKey(year, age);
   if (!byKey.has(key)) {
     const row = emptyLinear();
-    row.registration_number = registration;
+    row.adga_reg = registration;
     row.appraisal_date = year;
     row.age = age;
     row.source_url = sourceUrl;
@@ -956,7 +956,7 @@ function ptiRow(text, registration, capturedAt, sourceUrl) {
   const values = parseIndexes(text);
   if (!values.pti21 && !values.pti12 && !values.eta21 && !values.eta12) return null;
   const row = emptyPti();
-  row.registration_number = registration;
+  row.adga_reg = registration;
   row.pti21 = values.pti21;
   row.pti12 = values.pti12;
   row.eta21 = values.eta21;
@@ -978,8 +978,8 @@ function subjectFromPage(page, registration, capturedAt) {
   const dob = parseDobAndAppraisal(page.text);
   const breed = parseBreedPercent(page.text);
   const row = emptyIndividual();
-  row.registration_number = registration;
-  row.reg_number = toGeneticsRegNumber(registration);
+  row.adga_reg = registration;
+  row.adga_genetics_id = toGeneticsRegNumber(registration);
   applyRegisteredName(row, heading.registered_name);
   row.sex = heading.sex;
   row.herdbook = heading.herdbook;
@@ -1033,8 +1033,8 @@ function ownedStubsFromPage(page, ownerId, capturedAt) {
     if (!key || seen.has(key)) return;
     seen.add(key);
     const row = emptyIndividual();
-    row.reg_number = genetics;
-    row.registration_number = registration;
+    row.adga_genetics_id = genetics;
+    row.adga_reg = registration;
     applyRegisteredName(row, name);
     row.owner_id = ownerId;
     row.source_url = page.url ?? "";
@@ -1088,11 +1088,11 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
   const sameGenetics = (a, b) =>
     Boolean(toGeneticsRegNumber(a) && toGeneticsRegNumber(a) === toGeneticsRegNumber(b));
   const subjectFromTree = tree.find((row) =>
-    sameGenetics(row.reg_number || row.registration_number, registration),
+    sameGenetics(row.adga_genetics_id || row.adga_reg, registration),
   );
   if (subjectFromTree) {
-    subject.sire_registration = subjectFromTree.sire_registration;
-    subject.dam_registration = subjectFromTree.dam_registration;
+    subject.sire_adga_reg = subjectFromTree.sire_adga_reg;
+    subject.dam_adga_reg = subjectFromTree.dam_adga_reg;
   }
   const parentHints = new Map();
   for (const node of pedigreeNodes) {
@@ -1104,17 +1104,17 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
     if (opts.captureAncestry) {
       batch.individuals.push(
         ...tree.filter(
-          (row) => !sameGenetics(row.reg_number || row.registration_number, registration),
+          (row) => !sameGenetics(row.adga_genetics_id || row.adga_reg, registration),
         ),
       );
       if (view === "pedigree") {
         const have = new Set(
           batch.individuals.map((row) =>
-            toGeneticsRegNumber(row.reg_number || row.registration_number),
+            toGeneticsRegNumber(row.adga_genetics_id || row.adga_reg),
           ),
         );
         for (const stub of stubsFromGoatLinks(page.links, capturedAt, page.url ?? "")) {
-          const key = toGeneticsRegNumber(stub.reg_number || stub.registration_number);
+          const key = toGeneticsRegNumber(stub.adga_genetics_id || stub.adga_reg);
           if (!key || have.has(key)) continue;
           have.add(key);
           batch.individuals.push(stub);
@@ -1158,9 +1158,9 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
 
 function convertIndividual(row, byGenetics, parentHints = new Map()) {
   const next = { ...row };
-  const genetics = toGeneticsRegNumber(next.reg_number || next.registration_number);
-  next.reg_number = genetics;
-  next.registration_number = paperIdFromGenetics(genetics, next.herdbook);
+  const genetics = toGeneticsRegNumber(next.adga_genetics_id || next.adga_reg);
+  next.adga_genetics_id = genetics;
+  next.adga_reg = paperIdFromGenetics(genetics, next.herdbook);
   const parentPaper = (raw) => {
     const parentG = toGeneticsRegNumber(raw);
     if (!parentG) return { paper: "", genetics: "" };
@@ -1168,12 +1168,12 @@ function convertIndividual(row, byGenetics, parentHints = new Map()) {
     const book = parent?.herdbook || parentHints.get(parentG) || "";
     return { paper: paperIdFromGenetics(parentG, book), genetics: parentG };
   };
-  const sire = parentPaper(next.sire_registration || next.sire_reg_number);
-  const dam = parentPaper(next.dam_registration || next.dam_reg_number);
-  next.sire_reg_number = sire.genetics;
-  next.dam_reg_number = dam.genetics;
-  next.sire_registration = sire.paper;
-  next.dam_registration = dam.paper;
+  const sire = parentPaper(next.sire_adga_reg || next.sire_adga_genetics_id);
+  const dam = parentPaper(next.dam_adga_reg || next.dam_adga_genetics_id);
+  next.sire_adga_genetics_id = sire.genetics;
+  next.dam_adga_genetics_id = dam.genetics;
+  next.sire_adga_reg = sire.paper;
+  next.dam_adga_reg = dam.paper;
   next.goat_id = toAdgaSerial(next.goat_id || genetics);
   next.sire_goat_id = toAdgaSerial(next.sire_goat_id || sire.genetics);
   next.dam_goat_id = toAdgaSerial(next.dam_goat_id || dam.genetics);
@@ -1182,13 +1182,13 @@ function convertIndividual(row, byGenetics, parentHints = new Map()) {
 
 function convertBatch(batch, subjectBook = "", parentHints = new Map()) {
   const sketched = batch.individuals.map((row) => {
-    const genetics = toGeneticsRegNumber(row.reg_number || row.registration_number);
-    return { ...row, reg_number: genetics };
+    const genetics = toGeneticsRegNumber(row.adga_genetics_id || row.adga_reg);
+    return { ...row, adga_genetics_id: genetics };
   });
   const byGenetics = new Map(
     sketched
-      .filter((row) => row.reg_number)
-      .map((row) => [row.reg_number, row]),
+      .filter((row) => row.adga_genetics_id)
+      .map((row) => [row.adga_genetics_id, row]),
   );
   batch.individuals = sketched.map((row) =>
     convertIndividual(row, byGenetics, parentHints),
@@ -1198,12 +1198,12 @@ function convertBatch(batch, subjectBook = "", parentHints = new Map()) {
     return byGenetics.get(genetics)?.herdbook || subjectBook;
   };
   const convertScore = (row) => {
-    const genetics = toGeneticsRegNumber(row.reg_number || row.registration_number);
+    const genetics = toGeneticsRegNumber(row.adga_genetics_id || row.adga_reg);
     return {
       ...row,
-      reg_number: genetics,
+      adga_genetics_id: genetics,
       goat_id: toAdgaSerial(row.goat_id || genetics),
-      registration_number: paperIdFromGenetics(genetics, bookFor(genetics)),
+      adga_reg: paperIdFromGenetics(genetics, bookFor(genetics)),
     };
   };
   batch.linear = batch.linear.map(convertScore);

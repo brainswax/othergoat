@@ -112,12 +112,12 @@ describe("pedigree link title", () => {
   it("reads herdbook, Genetics id, and DOB", () => {
     const parsed = parsePedigreeLinkTitle(" PB D001822638 born 4/16/2016 ");
     assert.equal(parsed.herdbook, "PB");
-    assert.equal(parsed.reg_number, "D001822638");
+    assert.equal(parsed.adga_genetics_id, "D001822638");
     assert.equal(parsed.date_of_birth, "4/16/2016");
-    assert.equal(paperIdFromGenetics(parsed.reg_number, parsed.herdbook), "PD1822638");
-    assert.equal(hasReliablePaperId({ herdbook: "PB", reg_number: "D001822638" }), true);
-    assert.equal(hasReliablePaperId({ registration_number: "PN1352104" }), true);
-    assert.equal(hasReliablePaperId({ reg_number: "D001822638" }), false);
+    assert.equal(paperIdFromGenetics(parsed.adga_genetics_id, parsed.herdbook), "PD1822638");
+    assert.equal(hasReliablePaperId({ herdbook: "PB", adga_genetics_id: "D001822638" }), true);
+    assert.equal(hasReliablePaperId({ adga_reg: "PN1352104" }), true);
+    assert.equal(hasReliablePaperId({ adga_genetics_id: "D001822638" }), false);
   });
 });
 
@@ -205,8 +205,8 @@ describe("isIndividualComplete", () => {
     assert.equal(
       isIndividualComplete({
         registered_name: "STUB",
-        registration_number: "N111111",
-        sire_registration: "N222222",
+        adga_reg: "N111111",
+        sire_adga_reg: "N222222",
       }),
       false,
     );
@@ -214,15 +214,37 @@ describe("isIndividualComplete", () => {
 });
 
 describe("scrape complete flags", () => {
+  it("maps 1.x identity keys onto adga_reg / goat_id", () => {
+    const store = mergeBatch(emptyStore(), {
+      individuals: [
+        {
+          registration_number: "PD1967652",
+          reg_number: "D001967652",
+          sire_registration: "PD2076307",
+          dam_reg_number: "D001869395",
+        },
+      ],
+    });
+    const row = Object.values(store.individuals)[0];
+    assert.equal(row.adga_reg, "PD1967652");
+    assert.equal(row.adga_genetics_id, "D001967652");
+    assert.equal(row.goat_id, "1967652");
+    assert.equal(row.sire_adga_reg, "PD2076307");
+    assert.equal(row.sire_goat_id, "2076307");
+    assert.equal(row.dam_adga_genetics_id, "D001869395");
+    assert.equal(row.dam_goat_id, "1869395");
+    assert.equal(row.registration_number, undefined);
+  });
+
   it("does not treat a later stub merge as incomplete", () => {
     const first = mergeBatch(emptyStore(), {
-      individuals: [{ registration_number: "PD2237546", registered_name: "ONE" }],
+      individuals: [{ adga_reg: "PD2237546", registered_name: "ONE" }],
       subjectRegistration: "PD2237546",
       linearComplete: true,
       ptiComplete: true,
     });
     const second = mergeBatch(first, {
-      individuals: [{ registration_number: "PD2237546", registered_name: "" }],
+      individuals: [{ adga_reg: "PD2237546", registered_name: "" }],
     });
     assert.equal(goat(second, "PD2237546").linear_complete, true);
     assert.equal(goat(second, "PD2237546").pti_complete, true);
@@ -392,7 +414,7 @@ describe("extractFromSnapshot pedigree", () => {
     );
     assert.equal(batch.view, "pedigree");
     const byReg = Object.fromEntries(
-      batch.individuals.map((row) => [row.registration_number, row]),
+      batch.individuals.map((row) => [row.adga_reg, row]),
     );
     assert.equal(byReg.PN1352104.registered_name, "SG ALDER*GLEN TRES BONNE 3*M");
     assert.equal(byReg.PN1352104.title, "SG");
@@ -402,10 +424,10 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(byReg.PN1352104.linear_final_score, "84");
     assert.equal(byReg.PN1352104.linear_majors, "+V++");
     assert.equal(byReg.PN1352104.linear_age, "01-03");
-    assert.equal(byReg.PN1352104.sire_registration, "PN1201234");
-    assert.equal(byReg.PN1352104.dam_registration, "PN1198765");
-    assert.equal(byReg.PN1352104.sire_reg_number, "N001201234");
-    assert.equal(byReg.PN1352104.reg_number, "N001352104");
+    assert.equal(byReg.PN1352104.sire_adga_reg, "PN1201234");
+    assert.equal(byReg.PN1352104.dam_adga_reg, "PN1198765");
+    assert.equal(byReg.PN1352104.sire_adga_genetics_id, "N001201234");
+    assert.equal(byReg.PN1352104.adga_genetics_id, "N001352104");
     assert.equal(byReg.PN1352104.goat_id, "1352104");
     assert.equal(byReg.PN1352104.sire_goat_id, "1201234");
     assert.equal(byReg.PN1352104.dam_goat_id, "1198765");
@@ -415,12 +437,12 @@ describe("extractFromSnapshot pedigree", () => {
     assert.equal(byReg.PN1201234.sex, "BUCK");
     assert.equal(byReg.PN1201234.date_of_birth, "1/2/2010");
     assert.equal(byReg.PN1201234.herdbook, "PB");
-    assert.equal(byReg.PN1201234.sire_registration, "AN111111");
-    assert.equal(byReg.PN1201234.dam_registration, "PN222222");
+    assert.equal(byReg.PN1201234.sire_adga_reg, "AN111111");
+    assert.equal(byReg.PN1201234.dam_adga_reg, "PN222222");
     assert.equal(byReg.PN1198765.sex, "DOE");
     assert.equal(byReg.AN111111.registered_name, "SGCH SOME SIRE");
     assert.equal(byReg.AN111111.sex, "BUCK");
-    assert.equal(byReg.AN111111.sire_registration, "");
+    assert.equal(byReg.AN111111.sire_adga_reg, "");
     assert.equal(byReg.PN222222.sex, "DOE");
     assert.equal(byReg.PN1352104.polled, "N");
     assert.equal(byReg.PN1352104.black, "N");
@@ -455,7 +477,7 @@ describe("extractFromSnapshot pedigree", () => {
       { captureAncestry: true },
     );
     const byReg = Object.fromEntries(
-      batch.individuals.map((row) => [row.registration_number, row]),
+      batch.individuals.map((row) => [row.adga_reg, row]),
     );
     assert.equal(byReg.PN1352104.polled, "Y");
     assert.equal(byReg.PN1352104.black, "N");
@@ -487,7 +509,7 @@ describe("extractFromSnapshot pedigree", () => {
       { captureAncestry: true },
     );
     const byReg = Object.fromEntries(
-      batch.individuals.map((row) => [row.registration_number, row]),
+      batch.individuals.map((row) => [row.adga_reg, row]),
     );
     assert.equal(byReg.PN1352104.polled, "N");
     assert.equal(byReg.PN1352104.polled_from, "identity");
@@ -514,8 +536,8 @@ describe("extractFromSnapshot pedigree", () => {
       { captureAncestry: false },
     );
     assert.equal(batch.individuals.length, 1);
-    assert.equal(batch.individuals[0].sire_registration, "PN1201234");
-    assert.equal(batch.individuals[0].dam_registration, "PN1198765");
+    assert.equal(batch.individuals[0].sire_adga_reg, "PN1201234");
+    assert.equal(batch.individuals[0].dam_adga_reg, "PN1198765");
   });
 
   it("skips PTI when recordPti is off", () => {
@@ -620,10 +642,10 @@ describe("extractFromSnapshot progeny", () => {
       },
       "t",
     );
-    const kid = batch.individuals.find((row) => row.registration_number === "PN333333");
+    const kid = batch.individuals.find((row) => row.adga_reg === "PN333333");
     assert.equal(kid.registered_name, "KID ONE");
-    assert.equal(kid.dam_registration, "PN1352104");
-    assert.equal(kid.sire_registration, "");
+    assert.equal(kid.dam_adga_reg, "PN1352104");
+    assert.equal(kid.sire_adga_reg, "");
     assert.equal(kid.polled, "Y");
     assert.equal(kid.black, "Y");
     assert.equal(kid.polled_from, "progeny");
@@ -651,10 +673,10 @@ describe("extractFromSnapshot progeny", () => {
       { recordProgeny: false },
     );
     assert.equal(
-      batch.individuals.some((row) => row.registration_number === "PN333333"),
+      batch.individuals.some((row) => row.adga_reg === "PN333333"),
       false,
     );
-    assert.equal(batch.individuals[0].registration_number, "PN1352104");
+    assert.equal(batch.individuals[0].adga_reg, "PN1352104");
   });
 });
 
@@ -936,9 +958,9 @@ describe("merge", () => {
     };
     const lists = storeAsLists({
       individuals: {
-        stub: { registration_number: "N3", registered_name: "AAA STUB" },
-        late: { registration_number: "N2", registered_name: "ZEBRA", ...identity },
-        early: { registration_number: "N1", registered_name: "BETA", ...identity },
+        stub: { adga_reg: "N3", registered_name: "AAA STUB" },
+        late: { adga_reg: "N2", registered_name: "ZEBRA", ...identity },
+        early: { adga_reg: "N1", registered_name: "BETA", ...identity },
       },
       linear: {},
       pti: {},
@@ -953,30 +975,30 @@ describe("merge", () => {
     const first = mergeBatch(emptyStore(), {
       individuals: [
         {
-          registration_number: "N1",
+          adga_reg: "N1",
           registered_name: "ONE",
           breed: "",
-          sire_registration: "PN111111",
-          dam_registration: "",
+          sire_adga_reg: "PN111111",
+          dam_adga_reg: "",
         },
       ],
     });
     const second = mergeBatch(first, {
       individuals: [
         {
-          registration_number: "N1",
+          adga_reg: "N1",
           registered_name: "",
           breed: "N",
-          sire_registration: "",
-          dam_registration: "PN222222",
+          sire_adga_reg: "",
+          dam_adga_reg: "PN222222",
         },
       ],
     });
     const row = goat(second, "N1");
     assert.equal(row.registered_name, "ONE");
     assert.equal(row.breed, "N");
-    assert.equal(row.sire_registration, "PN111111");
-    assert.equal(row.dam_registration, "PN222222");
+    assert.equal(row.sire_adga_reg, "PN111111");
+    assert.equal(row.dam_adga_reg, "PN222222");
   });
 
   it("does not let a pedigree stub overwrite another animal's parents", () => {
@@ -984,14 +1006,14 @@ describe("merge", () => {
       subjectRegistration: "N1",
       individuals: [
         {
-          registration_number: "N1",
-          sire_registration: "PN111111",
-          dam_registration: "PN222222",
+          adga_reg: "N1",
+          sire_adga_reg: "PN111111",
+          dam_adga_reg: "PN222222",
         },
         {
-          registration_number: "N2",
-          sire_registration: "PN333333",
-          dam_registration: "PN444444",
+          adga_reg: "N2",
+          sire_adga_reg: "PN333333",
+          dam_adga_reg: "PN444444",
         },
       ],
     });
@@ -999,21 +1021,21 @@ describe("merge", () => {
       subjectRegistration: "N2",
       individuals: [
         {
-          registration_number: "N1",
-          sire_registration: "PN333333",
-          dam_registration: "PN444444",
+          adga_reg: "N1",
+          sire_adga_reg: "PN333333",
+          dam_adga_reg: "PN444444",
         },
         {
-          registration_number: "N2",
-          sire_registration: "PN555555",
-          dam_registration: "PN666666",
+          adga_reg: "N2",
+          sire_adga_reg: "PN555555",
+          dam_adga_reg: "PN666666",
         },
       ],
     });
-    assert.equal(goat(second, "N1").sire_registration, "PN111111");
-    assert.equal(goat(second, "N1").dam_registration, "PN222222");
-    assert.equal(goat(second, "N2").sire_registration, "PN555555");
-    assert.equal(goat(second, "N2").dam_registration, "PN666666");
+    assert.equal(goat(second, "N1").sire_adga_reg, "PN111111");
+    assert.equal(goat(second, "N1").dam_adga_reg, "PN222222");
+    assert.equal(goat(second, "N2").sire_adga_reg, "PN555555");
+    assert.equal(goat(second, "N2").dam_adga_reg, "PN666666");
   });
 
   it("fills goat_id and parent serials so parents join on ADGA Goat Id", () => {
@@ -1021,11 +1043,11 @@ describe("merge", () => {
       subjectRegistration: "D002434405",
       individuals: [
         {
-          registration_number: "",
-          reg_number: "D002434405",
+          adga_reg: "",
+          adga_genetics_id: "D002434405",
           herdbook: "",
-          sire_reg_number: "D002076307",
-          dam_reg_number: "D001869395",
+          sire_adga_genetics_id: "D002076307",
+          dam_adga_genetics_id: "D001869395",
         },
       ],
     });
@@ -1033,15 +1055,15 @@ describe("merge", () => {
     assert.equal(row.goat_id, "2434405");
     assert.equal(row.sire_goat_id, "2076307");
     assert.equal(row.dam_goat_id, "1869395");
-    assert.equal(row.registration_number, "");
+    assert.equal(row.adga_reg, "");
   });
 
   it("lets a later non-empty value replace an earlier one", () => {
     const first = mergeBatch(emptyStore(), {
-      individuals: [{ registration_number: "N1", breed: "A" }],
+      individuals: [{ adga_reg: "N1", breed: "A" }],
     });
     const second = mergeBatch(first, {
-      individuals: [{ registration_number: "N1", breed: "N" }],
+      individuals: [{ adga_reg: "N1", breed: "N" }],
     });
     assert.equal(goat(second, "N1").breed, "N");
   });
@@ -1050,7 +1072,7 @@ describe("merge", () => {
     const first = mergeBatch(emptyStore(), {
       individuals: [
         {
-          registration_number: "N1",
+          adga_reg: "N1",
           polled: "Y",
           black: "Y",
           polled_from: "pedigree",
@@ -1061,7 +1083,7 @@ describe("merge", () => {
     const second = mergeBatch(first, {
       individuals: [
         {
-          registration_number: "N1",
+          adga_reg: "N1",
           polled: "N",
           black: "N",
           polled_from: "identity",
@@ -1078,7 +1100,7 @@ describe("merge", () => {
     const first = mergeBatch(emptyStore(), {
       individuals: [
         {
-          registration_number: "N1",
+          adga_reg: "N1",
           polled: "Y",
           black: "N",
           polled_from: "identity",
@@ -1089,7 +1111,7 @@ describe("merge", () => {
     const second = mergeBatch(first, {
       individuals: [
         {
-          registration_number: "N1",
+          adga_reg: "N1",
           polled: "N",
           black: "Y",
           polled_from: "pedigree",
@@ -1106,16 +1128,16 @@ describe("merge", () => {
   it("removes one animal without touching LA or PTI", () => {
     const store = mergeBatch(emptyStore(), {
       individuals: [
-        { registration_number: "PD2237546", registered_name: "KEEP" },
-        { registration_number: "PN1352104", registered_name: "DROP" },
+        { adga_reg: "PD2237546", registered_name: "KEEP" },
+        { adga_reg: "PN1352104", registered_name: "DROP" },
       ],
       linear: [
-        { registration_number: "PN1352104", appraisal_date: "2025", age: "03-02" },
-        { registration_number: "PD2237546", appraisal_date: "2024", age: "02-01" },
+        { adga_reg: "PN1352104", appraisal_date: "2025", age: "03-02" },
+        { adga_reg: "PD2237546", appraisal_date: "2024", age: "02-01" },
       ],
       pti: [
-        { registration_number: "PN1352104", pti21: "1" },
-        { registration_number: "PD2237546", pti21: "2" },
+        { adga_reg: "PN1352104", pti21: "1" },
+        { adga_reg: "PD2237546", pti21: "2" },
       ],
     });
     const next = removeRow(store, "individuals", "N001352104");
@@ -1124,20 +1146,20 @@ describe("merge", () => {
     assert.equal(Object.keys(next.linear).length, 2);
     assert.equal(Object.keys(next.pti).length, 2);
     assert.ok(
-      Object.values(next.pti).some((row) => row.registration_number === "PN1352104"),
+      Object.values(next.pti).some((row) => row.adga_reg === "PN1352104"),
     );
   });
 
   it("removes a single LA row without dropping the animal", () => {
     const store = mergeBatch(emptyStore(), {
-      individuals: [{ registration_number: "PD2237546" }],
+      individuals: [{ adga_reg: "PD2237546" }],
       linear: [
-        { registration_number: "PD2237546", appraisal_date: "2025", age: "03-02" },
-        { registration_number: "PD2237546", appraisal_date: "2024", age: "02-01" },
+        { adga_reg: "PD2237546", appraisal_date: "2025", age: "03-02" },
+        { adga_reg: "PD2237546", appraisal_date: "2024", age: "02-01" },
       ],
     });
     const drop = linearKey({
-      registration_number: "PD2237546",
+      adga_reg: "PD2237546",
       appraisal_date: "2025",
       age: "03-02",
     });
@@ -1154,14 +1176,14 @@ describe("merge", () => {
     const store = mergeBatch(emptyStore(), {
       individuals: [
         {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           registered_name: "KEEP",
         },
       ],
       linear: [
-        { registration_number: "PD2237546", appraisal_date: "2024", age: "02-01" },
+        { adga_reg: "PD2237546", appraisal_date: "2024", age: "02-01" },
       ],
-      pti: [{ registration_number: "PD2237546", pti21: "40" }],
+      pti: [{ adga_reg: "PD2237546", pti21: "40" }],
       subjectRegistration: "PD2237546",
       linearComplete: true,
       ptiComplete: true,
@@ -1178,7 +1200,7 @@ describe("merge", () => {
 
   it("marks Linear History complete even when the table is empty", () => {
     const batch = {
-      individuals: [{ registration_number: "PD2237546" }],
+      individuals: [{ adga_reg: "PD2237546" }],
       linear: [],
       pti: [],
       subjectRegistration: "PD2237546",
@@ -1193,13 +1215,13 @@ describe("merge", () => {
 describe("csv zip", () => {
   it("quotes commas and writes three named files", () => {
     const csv = recordsToCsv(
-      [{ registration_number: "N1", registered_name: "Name, with comma" }],
+      [{ adga_reg: "N1", registered_name: "Name, with comma" }],
       INDIVIDUAL_COLUMNS,
     );
-    assert.match(csv, /^registration_number,reg_number,registered_name,title,breed,/);
+    assert.match(csv, /^adga_reg,adga_genetics_id,goat_id,registered_name,title,breed,/);
     assert.equal(
       LINEAR_COLUMNS.slice(0, 6).join(","),
-      "registration_number,reg_number,goat_id,registered_name,appraisal_date,age",
+      "adga_reg,adga_genetics_id,goat_id,registered_name,appraisal_date,age",
     );
     assert.equal(
       LINEAR_COLUMNS.slice(6, -3).join(","),
@@ -1207,12 +1229,12 @@ describe("csv zip", () => {
     );
     assert.equal(
       PTI_COLUMNS.slice(0, 4).join(","),
-      "registration_number,reg_number,goat_id,registered_name",
+      "adga_reg,adga_genetics_id,goat_id,registered_name",
     );
     assert.match(csv, /"Name, with comma"/);
     const files = storeToZipFiles(
       {
-        individuals: [{ registration_number: "N1" }],
+        individuals: [{ adga_reg: "N1" }],
         linear: [],
         pti: [],
       },
@@ -1228,23 +1250,23 @@ describe("csv zip", () => {
     const files = storeToZipFiles({
       individuals: [
         {
-          registration_number: "PN1352104",
+          adga_reg: "PN1352104",
           herdbook: "PB",
-          reg_number: "N001352104",
+          adga_genetics_id: "N001352104",
           registered_name: "KEEP",
         },
         {
-          registration_number: "",
+          adga_reg: "",
           herdbook: "",
-          reg_number: "D002237546",
+          adga_genetics_id: "D002237546",
           registered_name: "STUB",
         },
       ],
       linear: [
-        { registration_number: "PN1352104", appraisal_date: "2024" },
-        { reg_number: "D002237546", appraisal_date: "2025" },
+        { adga_reg: "PN1352104", appraisal_date: "2024" },
+        { adga_genetics_id: "D002237546", appraisal_date: "2025" },
       ],
-      pti: [{ reg_number: "D002237546", pti21: "40" }],
+      pti: [{ adga_genetics_id: "D002237546", pti21: "40" }],
     });
     const individuals = files.find((file) => file.name === "individuals.csv").text;
     const linear = files.find((file) => file.name === "linear_appraisals.csv").text;
@@ -1262,7 +1284,7 @@ describe("csv zip", () => {
     const all = storeToZipFiles(
       {
         individuals: [
-          { registration_number: "", reg_number: "D002237546", registered_name: "STUB" },
+          { adga_reg: "", adga_genetics_id: "D002237546", registered_name: "STUB" },
         ],
         linear: [],
         pti: [],
@@ -1281,18 +1303,18 @@ describe("csv zip", () => {
     const files = storeToZipFiles(
       {
         individuals: [
-          { registration_number: "PN1352104", registered_name: "SG ALDER*GLEN TRES BONNE 3*M" },
+          { adga_reg: "PN1352104", registered_name: "SG ALDER*GLEN TRES BONNE 3*M" },
         ],
-        linear: [{ registration_number: "PN1352104", appraisal_date: "2025", age: "03-02" }],
-        pti: [{ registration_number: "PN1352104", pti21: "142" }],
+        linear: [{ adga_reg: "PN1352104", appraisal_date: "2025", age: "03-02" }],
+        pti: [{ adga_reg: "PN1352104", pti21: "142" }],
       },
       { omitWithoutPaperId: false },
     );
     const linear = files.find((file) => file.name === "linear_appraisals.csv").text;
     const pti = files.find((file) => file.name === "pti.csv").text;
-    assert.match(linear, /^registration_number,reg_number,goat_id,registered_name,appraisal_date,/);
+    assert.match(linear, /^adga_reg,adga_genetics_id,goat_id,registered_name,appraisal_date,/);
     assert.match(linear, /PN1352104,,1352104,SG ALDER\*GLEN TRES BONNE 3\*M,2025/);
-    assert.match(pti, /^registration_number,reg_number,goat_id,registered_name,pti21,/);
+    assert.match(pti, /^adga_reg,adga_genetics_id,goat_id,registered_name,pti21,/);
     assert.match(pti, /PN1352104,,1352104,SG ALDER\*GLEN TRES BONNE 3\*M,142/);
   });
 
@@ -1307,7 +1329,7 @@ describe("csv zip", () => {
 
   it("builds a store-only zip", async () => {
     const blob = storeToZipBlob({
-      individuals: [{ registration_number: "N1" }],
+      individuals: [{ adga_reg: "N1" }],
       linear: [],
       pti: [],
     });
@@ -1321,9 +1343,9 @@ describe("csv zip", () => {
   it("writes zip manifest.json with per-file versions and row counts", () => {
     const files = storeToZipFiles(
       {
-        individuals: [{ registration_number: "N1" }, { registration_number: "N2" }],
-        linear: [{ registration_number: "N1", appraisal_date: "2025" }],
-        pti: [{ registration_number: "N1", pti21: "40" }],
+        individuals: [{ adga_reg: "N1" }, { adga_reg: "N2" }],
+        linear: [{ adga_reg: "N1", appraisal_date: "2025" }],
+        pti: [{ adga_reg: "N1", pti21: "40" }],
       },
       {
         exportedAt: "2026-09-02T12:00:00.000Z",
@@ -1356,28 +1378,28 @@ describe("csv zip", () => {
 
   it("omits columns that are empty on every row when asked", () => {
     const rows = [
-      { registration_number: "PN1352104", registered_name: "TRES", owner_id: "" },
+      { adga_reg: "PN1352104", registered_name: "TRES", owner_id: "" },
     ];
     assert.deepEqual(
       exportColumns(rows, INDIVIDUAL_COLUMNS, false),
       INDIVIDUAL_COLUMNS,
     );
     const slim = exportColumns(rows, INDIVIDUAL_COLUMNS, true);
-    assert.deepEqual(slim, ["registration_number", "registered_name"]);
+    assert.deepEqual(slim, ["adga_reg", "registered_name"]);
     assert.equal(exportColumns([], INDIVIDUAL_COLUMNS, true), INDIVIDUAL_COLUMNS);
     const files = storeToZipFiles(
       { individuals: rows, linear: [], pti: [] },
       { omitEmptyColumns: true, omitWithoutPaperId: false },
     );
     const csv = files.find((file) => file.name === "individuals.csv").text;
-    assert.equal(csv.split("\n")[0], "registration_number,registered_name,goat_id");
-    assert.match(csv, /PN1352104,TRES,1352104/);
+    assert.equal(csv.split("\n")[0], "adga_reg,goat_id,registered_name");
+    assert.match(csv, /PN1352104,1352104,TRES/);
     assert.doesNotMatch(csv, /owner_id/);
     const full = storeToZipFiles(
       { individuals: rows, linear: [], pti: [] },
       { omitWithoutPaperId: false },
     );
-    assert.match(full.find((file) => file.name === "individuals.csv").text, /^registration_number,reg_number,registered_name,title,/);
+    assert.match(full.find((file) => file.name === "individuals.csv").text, /^adga_reg,adga_genetics_id,goat_id,registered_name,title,/);
   });
 
   it("includes owner_id on individuals.csv", () => {
@@ -1385,12 +1407,12 @@ describe("csv zip", () => {
     assert.ok(INDIVIDUAL_COLUMNS.includes("tattoo_re"));
     assert.ok(INDIVIDUAL_COLUMNS.includes("format_1"));
     const csv = recordsToCsv(
-      [{ registration_number: "PN1352104", owner_id: "1234567" }],
+      [{ adga_reg: "PN1352104", owner_id: "1234567" }],
       INDIVIDUAL_COLUMNS,
     );
     assert.match(
       csv,
-      /sire_registration,sire_reg_number,sire_goat_id,dam_registration,dam_reg_number,dam_goat_id,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,goat_id,source_url/,
+      /sire_adga_reg,sire_adga_genetics_id,sire_goat_id,dam_adga_reg,dam_adga_genetics_id,dam_goat_id,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,source_url/,
     );
     assert.match(csv, /PN1352104,.*,1234567,/);
   });
@@ -1416,7 +1438,7 @@ describe("pti seasons", () => {
     const first = mergeBatch(emptyStore(), {
       pti: [
         {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           pti21: "40",
           captured_at: "2026-03-01T12:00:00.000Z",
         },
@@ -1425,20 +1447,20 @@ describe("pti seasons", () => {
     const second = mergeBatch(first, {
       pti: [
         {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           pti21: "41",
           captured_at: "2026-03-20T12:00:00.000Z",
         },
         {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           pti21: "55",
           captured_at: "2026-09-02T12:00:00.000Z",
         },
       ],
     });
     assert.equal(Object.keys(second.pti).length, 2);
-    assert.equal(second.pti[ptiKey({ registration_number: "PD2237546", captured_at: "2026-03-01T12:00:00.000Z" })].pti21, "41");
-    assert.equal(second.pti[ptiKey({ registration_number: "PD2237546", captured_at: "2026-09-02T12:00:00.000Z" })].pti21, "55");
+    assert.equal(second.pti[ptiKey({ adga_reg: "PD2237546", captured_at: "2026-03-01T12:00:00.000Z" })].pti21, "41");
+    assert.equal(second.pti[ptiKey({ adga_reg: "PD2237546", captured_at: "2026-09-02T12:00:00.000Z" })].pti21, "55");
   });
 
   it("re-keys a registration-only stored PTI row", () => {
@@ -1447,14 +1469,14 @@ describe("pti seasons", () => {
       linear: {},
       pti: {
         PD2237546: {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           pti21: "40",
           captured_at: "2026-09-02T12:00:00.000Z",
         },
       },
     });
     const key = ptiKey({
-      registration_number: "PD2237546",
+      adga_reg: "PD2237546",
       captured_at: "2026-09-02T12:00:00.000Z",
     });
     assert.equal(store.pti[key].pti21, "40");
@@ -1463,15 +1485,15 @@ describe("pti seasons", () => {
 
   it("removing one season keeps the other and PTI complete", () => {
     const store = mergeBatch(emptyStore(), {
-      individuals: [{ registration_number: "PD2237546" }],
+      individuals: [{ adga_reg: "PD2237546" }],
       pti: [
         {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           pti21: "10",
           captured_at: "2026-03-01T12:00:00.000Z",
         },
         {
-          registration_number: "PD2237546",
+          adga_reg: "PD2237546",
           pti21: "20",
           captured_at: "2026-09-02T12:00:00.000Z",
         },
@@ -1480,7 +1502,7 @@ describe("pti seasons", () => {
       ptiComplete: true,
     });
     const drop = ptiKey({
-      registration_number: "PD2237546",
+      adga_reg: "PD2237546",
       captured_at: "2026-03-01T12:00:00.000Z",
     });
     const next = removeRow(store, "pti", drop);
@@ -1513,8 +1535,8 @@ describe("owned by me", () => {
     const batch = extractOwnedByMeSnapshot(ownedPage, "2026-09-02T12:00:00.000Z");
     assert.equal(batch.view, "owned");
     assert.equal(batch.individuals.length, 1);
-    assert.equal(batch.individuals[0].registration_number, "");
-    assert.equal(batch.individuals[0].reg_number, "D002237546");
+    assert.equal(batch.individuals[0].adga_reg, "");
+    assert.equal(batch.individuals[0].adga_genetics_id, "D002237546");
     assert.equal(batch.individuals[0].owner_id, "1234567");
     assert.equal(batch.individuals[0].registered_name, "TWIN WILLOWS AL KARAMELLO");
     const goat = extractFromSnapshot({
@@ -1529,10 +1551,10 @@ describe("owned by me", () => {
 
   it("does not clear a filled owner_id with a later blank", () => {
     const first = mergeBatch(emptyStore(), {
-      individuals: [{ registration_number: "PD2237546", owner_id: "1234567" }],
+      individuals: [{ adga_reg: "PD2237546", owner_id: "1234567" }],
     });
     const second = mergeBatch(first, {
-      individuals: [{ registration_number: "PD2237546", owner_id: "" }],
+      individuals: [{ adga_reg: "PD2237546", owner_id: "" }],
     });
     assert.equal(goat(second, "PD2237546").owner_id, "1234567");
   });

@@ -8,6 +8,7 @@ import {
   MANIFEST_VERSION,
   PTI_COLUMNS,
   STORE_FILES,
+  normalizeIdentityRow,
 } from "./schema.js";
 import { hasReliablePaperId, identityKey, toAdgaSerial, toGeneticsRegNumber } from "./registration.js";
 import { zipStore } from "./zip.js";
@@ -48,7 +49,7 @@ function nameByRegistration(individuals) {
   for (const row of individuals ?? []) {
     const name = String(row?.registered_name ?? "").trim();
     if (!name) continue;
-    for (const value of [row?.reg_number, row?.registration_number]) {
+    for (const value of [row?.adga_genetics_id, row?.adga_reg]) {
       const key = identityKey(value) || toGeneticsRegNumber(value);
       if (key) names.set(key, name);
     }
@@ -59,18 +60,18 @@ function nameByRegistration(individuals) {
 function withSerials(row) {
   return {
     ...row,
-    goat_id: toAdgaSerial(row?.goat_id || row?.reg_number || row?.registration_number),
-    ...(row?.sire_reg_number != null || row?.sire_registration != null || row?.sire_goat_id != null
+    goat_id: toAdgaSerial(row?.goat_id || row?.adga_genetics_id || row?.adga_reg),
+    ...(row?.sire_adga_genetics_id != null || row?.sire_adga_reg != null || row?.sire_goat_id != null
       ? {
           sire_goat_id: toAdgaSerial(
-            row?.sire_goat_id || row?.sire_reg_number || row?.sire_registration,
+            row?.sire_goat_id || row?.sire_adga_genetics_id || row?.sire_adga_reg,
           ),
         }
       : {}),
-    ...(row?.dam_reg_number != null || row?.dam_registration != null || row?.dam_goat_id != null
+    ...(row?.dam_adga_genetics_id != null || row?.dam_adga_reg != null || row?.dam_goat_id != null
       ? {
           dam_goat_id: toAdgaSerial(
-            row?.dam_goat_id || row?.dam_reg_number || row?.dam_registration,
+            row?.dam_goat_id || row?.dam_adga_genetics_id || row?.dam_adga_reg,
           ),
         }
       : {}),
@@ -81,9 +82,9 @@ function withRegisteredNames(lists) {
   const names = nameByRegistration(lists?.individuals);
   const fill = (row) => {
     const fromId =
-      names.get(identityKey(row?.reg_number)) ||
-      names.get(identityKey(row?.registration_number)) ||
-      names.get(toGeneticsRegNumber(row?.reg_number || row?.registration_number));
+      names.get(identityKey(row?.adga_genetics_id)) ||
+      names.get(identityKey(row?.adga_reg)) ||
+      names.get(toGeneticsRegNumber(row?.adga_genetics_id || row?.adga_reg));
     if (!fromId) return row;
     return { ...row, registered_name: fromId };
   };
@@ -135,11 +136,11 @@ function filterReliablePaperIds(lists, omitWithoutPaperId) {
   );
   const keep = new Set(
     individuals
-      .map((row) => toGeneticsRegNumber(row.reg_number || row.registration_number))
+      .map((row) => toGeneticsRegNumber(row.adga_genetics_id || row.adga_reg))
       .filter(Boolean),
   );
   const onKept = (row) =>
-    keep.has(toGeneticsRegNumber(row?.reg_number || row?.registration_number));
+    keep.has(toGeneticsRegNumber(row?.adga_genetics_id || row?.adga_reg));
   return {
     ...lists,
     individuals,
@@ -149,8 +150,14 @@ function filterReliablePaperIds(lists, omitWithoutPaperId) {
 }
 
 export function storeToZipFiles(lists, meta = {}) {
+  const canonical = {
+    ...lists,
+    individuals: (lists?.individuals ?? []).map(normalizeIdentityRow),
+    linear: (lists?.linear ?? []).map(normalizeIdentityRow),
+    pti: (lists?.pti ?? []).map(normalizeIdentityRow),
+  };
   const named = filterReliablePaperIds(
-    withRegisteredNames(lists),
+    withRegisteredNames(canonical),
     meta.omitWithoutPaperId,
   );
   const serials = {

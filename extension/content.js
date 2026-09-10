@@ -246,9 +246,10 @@ function nowIso() {
 function batchKey(batch) {
   if (!batch) return "";
   const subject =
-    batch.individuals?.[0]?.registration_number ||
-    batch.pti?.[0]?.registration_number ||
-    batch.linear?.[0]?.registration_number ||
+    batch.individuals?.[0]?.adga_reg ||
+    batch.individuals?.[0]?.adga_genetics_id ||
+    batch.pti?.[0]?.adga_reg ||
+    batch.linear?.[0]?.adga_reg ||
     "";
   return [
     location.href,

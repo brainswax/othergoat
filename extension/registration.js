@@ -31,7 +31,7 @@ export function parsePedigreeLinkTitle(title) {
   const dob = (text.match(/\bborn\s+(\d{1,2}\/\d{1,2}\/\d{4})/i) ?? [])[1];
   return {
     herdbook: herdbook ? herdbook.toUpperCase() : "",
-    reg_number: reg ? reg.toUpperCase() : "",
+    adga_genetics_id: reg ? reg.toUpperCase() : "",
     date_of_birth: dob ?? "",
   };
 }
@@ -56,10 +56,14 @@ export function isPaperRegistration(value) {
 }
 
 export function hasReliablePaperId(row) {
-  if (isPaperRegistration(row?.registration_number)) return true;
+  if (isPaperRegistration(row?.adga_reg || row?.registration_number)) return true;
   return Boolean(
     paperIdFromGenetics(
-      row?.reg_number || row?.registration_number,
+      row?.adga_genetics_id ||
+        row?.adga_genetics_reg ||
+        row?.reg_number ||
+        row?.adga_reg ||
+        row?.registration_number,
       row?.herdbook,
     ),
   );
