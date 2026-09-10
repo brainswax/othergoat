@@ -14,7 +14,7 @@ Design: [`docs/adga-genetics-csv-export-design.md`](./docs/adga-genetics-csv-exp
 2. **Active individual** — Point at one registration; the extension POSTs that animal’s own views.
 3. **Active family** — After (2), POST-walk direct progeny, siblings, and parents.
 
-The zip is **`manifestVersion` 1.0**: `manifest.json` plus the three CSVs (each file version `1.0`). Versions are `major.patch`; same major is compatible. See the design doc.
+The zip is **`manifestVersion` 1.0**: `manifest.json` plus the three CSVs (each file version `1.2`). Versions are `major.patch`; same major is compatible. See the design doc.
 
 ## Install
 
@@ -52,13 +52,13 @@ If you already loaded an older build, click **Reload** on `chrome://extensions`,
 The zip contains `manifest.json` and three CSVs (one table each):
 
 - `manifest.json` — format id, `manifestVersion` (`1.0`), exporter version, and per-file `version` (`major.patch`) + row counts.
-- `individuals.csv` — one row per **ADGA registration ID** (`PD2237546`, not Genetics `D002237546`); `sire_registration` / `dam_registration` only (no parent names). `title` is SG/SGCH/CH/GCH. Identity pane FS, condensed majors, and appraisal age go on this row. `owner_id` is the ADGA member ID when the animal appears on Genetics **Owned by me** (empty = unknown). Also reserved: tattoos, EID, ears, horns, conforms, description, status, breeder, breeding method, Format 1, goat id (filled later from app.adga.org Identity). Pedigree creates a stub for every animal in the visible tree.
+- `individuals.csv` — `goat_id` is the ADGA serial (Goat Id digits, e.g. `2237546`), filled from Genetics / paper. `reg_number` is the Genetics id (`D002237546`). `registration_number` is the paper id (`PD2237546`) when herdbook is known. Parent paper ids plus `sire_reg_number` / `dam_reg_number` and `sire_goat_id` / `dam_goat_id`. Join on `goat_id`. `title` is SG/SGCH/CH/GCH. Identity pane FS, condensed majors, and appraisal age go on this row. `owner_id` is the ADGA member ID when the animal appears on Genetics **Owned by me** (empty = unknown). Also reserved: tattoos, EID, ears, horns, conforms, description, status, breeder, breeding method, Format 1 (filled later from app.adga.org Identity). Pedigree creates a stub for every animal in the visible tree (herdbook and DOB from the link title).
 - `linear_appraisals.csv` — one row per Linear History event: registration, registered name, linear scores, structural letters, GA/DS/BC/MS, final score, miscellaneous codes.
 - `pti.csv` — one row per registration per scrape-season: registered name, `pti21`, `pti12`, `eta21`, `eta12`, `captured_at` (maps to August or December).
 
-Opening Pedigree creates a stub row for every animal in the visible tree (name, registration, parent registrations). Visiting that animal later fills breed, DOB, LA, and PTI. Empty cells are not overwritten.
+Opening Pedigree creates a stub row for every animal in the visible tree (name, Genetics id, Goat Id serial, herdbook/DOB from the link title, parent ids). Visiting that animal later fills breed, LA, and PTI. Empty cells are not overwritten.
 
-Settings → **Omit empty columns on download** is off by default (full header). Turn it on for a slimmer spreadsheet.
+Settings → **Omit rows without a paper id** is on by default. Settings → **Omit empty columns on download** is off by default (full header).
 
 ## Tests
 

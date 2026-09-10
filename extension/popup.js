@@ -6,7 +6,7 @@ import {
 } from "./csv.js";
 import { linearKey, ptiKey } from "./merge.js";
 import { ptiEvalFromCapturedAt, ptiEvalLabel } from "./pti.js";
-import { goatDetailUrl, identityKey } from "./registration.js";
+import { goatDetailUrl, identityKey, toGeneticsRegNumber } from "./registration.js";
 import {
   DEFAULT_SETTINGS,
   isIndividualComplete,
@@ -42,6 +42,7 @@ const progenyOpt = document.getElementById("opt-progeny");
 const ptiOpt = document.getElementById("opt-pti");
 const linearOpt = document.getElementById("opt-linear");
 const omitEmptyOpt = document.getElementById("opt-omit-empty");
+const omitPaperOpt = document.getElementById("opt-omit-paper");
 const panelEl = document.getElementById("panel");
 const downloadCsvBtn = document.getElementById("download-csv");
 const downloadBtn = document.getElementById("download");
@@ -75,15 +76,34 @@ function formatCaptured(iso) {
   return d.toLocaleString();
 }
 
+function displayId(row) {
+  return String(row?.registration_number || row?.reg_number || "").trim();
+}
+
+function matchId(value) {
+  return toGeneticsRegNumber(value) || identityKey(value);
+}
+
+function rowMatchId(row) {
+  return matchId(row?.reg_number || row?.registration_number);
+}
+
 function nameLookup(individuals) {
   const byId = new Map();
   const byKey = new Map();
   for (const row of individuals) {
-    const reg = row.registration_number ?? "";
-    if (!reg) continue;
-    const label = row.registered_name || reg;
-    byId.set(reg, label);
-    byKey.set(identityKey(reg), label);
+    const label = row.registered_name || displayId(row);
+    if (!label) continue;
+    const paper = String(row.registration_number ?? "").trim();
+    const genetics = String(row.reg_number ?? "").trim();
+    if (paper) {
+      byId.set(paper, label);
+      byKey.set(identityKey(paper), label);
+    }
+    if (genetics) {
+      byId.set(genetics, label);
+      byKey.set(identityKey(genetics), label);
+    }
   }
   return (reg) => byId.get(reg) || byKey.get(identityKey(reg || "")) || reg || "";
 }
@@ -98,7 +118,7 @@ function el(tag, className, text) {
 function rowFocusKey(tab, row) {
   if (tab === "linear") return `linear:${linearKey(row)}`;
   if (tab === "pti") return `pti:${ptiKey(row)}`;
-  return `animal:${identityKey(row.registration_number)}`;
+  return `animal:${rowMatchId(row)}`;
 }
 
 function appendItem(parts, key) {
@@ -255,16 +275,14 @@ function scrapeMarks(flags = {}, registration = "", sourceUrl = "", onOpen) {
 }
 
 function hasRows(list, registration) {
-  return (list ?? []).some(
-    (item) =>
-      identityKey(item.registration_number) === identityKey(registration || ""),
-  );
+  const want = matchId(registration);
+  if (!want) return false;
+  return (list ?? []).some((item) => rowMatchId(item) === want);
 }
 
 function flagsOf(registration, individuals, linear, pti) {
-  const row = (individuals ?? []).find(
-    (item) => identityKey(item.registration_number) === identityKey(registration || ""),
-  );
+  const want = matchId(registration);
+  const row = (individuals ?? []).find((item) => rowMatchId(item) === want);
   return {
     identity: isIndividualComplete(row) ? "found" : "missing",
     linear: scrapeStatus(row?.linear_complete, hasRows(linear, registration)),
@@ -371,7 +389,7 @@ function genderMark(sex) {
 
 function animalSummary(row) {
   const meta = el("div", "meta");
-  const id = (row.registration_number ?? "").trim();
+  const id = displayId(row);
   if (id) meta.append(el("span", "reg", id));
   const sex = genderMark(row.sex);
   if (sex) {
@@ -420,6 +438,7 @@ function animalSearchParts(row) {
     row.registered_name,
     row.title,
     row.registration_number,
+    row.reg_number,
     row.date_of_birth,
     row.herdbook,
     row.polled,
@@ -441,8 +460,9 @@ function animalSearchParts(row) {
 
 function linearSearchParts(row, nameOf) {
   return [
-    nameOf(row.registration_number),
+    nameOf(displayId(row)),
     row.registration_number,
+    row.reg_number,
     row.appraisal_date,
     row.age,
     row.final_score,
@@ -464,8 +484,9 @@ function ptiSeasonLabel(row) {
 
 function ptiSearchParts(row, nameOf) {
   return [
-    nameOf(row.registration_number),
+    nameOf(displayId(row)),
     row.registration_number,
+    row.reg_number,
     ptiSeasonLabel(row),
     row.pti21,
     row.pti12,
@@ -477,32 +498,34 @@ function ptiSearchParts(row, nameOf) {
 function renderAnimals(individuals, linear, pti) {
   for (const row of individuals) {
     const key = rowFocusKey("animals", row);
+    const id = displayId(row);
     appendItem([
-      titleRow(row.registered_name || row.registration_number, row.captured_at, {
-        marks: flagsOf(row.registration_number, individuals, linear, pti),
-        registration: row.registration_number,
+      titleRow(row.registered_name || id, row.captured_at, {
+        marks: flagsOf(id, individuals, linear, pti),
+        registration: id,
         sourceUrl: row.source_url,
         focusKey: key,
       }),
-      metaRow(animalSummary(row), "individuals", row.registration_number),
+      metaRow(animalSummary(row), "individuals", rowMatchId(row)),
     ], key);
   }
 }
 
 function renderLinear(linear, nameOf, individuals, pti) {
   for (const row of linear) {
-    const title = nameOf(row.registration_number);
+    const id = displayId(row);
+    const title = nameOf(id);
     const key = rowFocusKey("linear", row);
     appendItem([
-      titleRow(title || row.registration_number, row.captured_at, {
-        marks: flagsOf(row.registration_number, individuals, linear, pti),
-        registration: row.registration_number,
+      titleRow(title || id, row.captured_at, {
+        marks: flagsOf(id, individuals, linear, pti),
+        registration: id,
         sourceUrl: row.source_url,
         focusKey: key,
       }),
       metaRow(
         [
-          row.registration_number,
+          id,
           row.appraisal_date,
           row.age,
           row.final_score ? `FS ${row.final_score}` : "",
@@ -519,7 +542,8 @@ function renderLinear(linear, nameOf, individuals, pti) {
 
 function renderPti(pti, nameOf, individuals, linear) {
   for (const row of pti) {
-    const title = nameOf(row.registration_number);
+    const id = displayId(row);
+    const title = nameOf(id);
     const key = rowFocusKey("pti", row);
     const scores = [
       row.pti21 ? `PTI21 ${row.pti21}` : "",
@@ -531,14 +555,14 @@ function renderPti(pti, nameOf, individuals, linear) {
       .join(" · ");
     appendItem(
       [
-        titleRow(title || row.registration_number, row.captured_at, {
-          marks: flagsOf(row.registration_number, individuals, linear, pti),
-          registration: row.registration_number,
+        titleRow(title || id, row.captured_at, {
+          marks: flagsOf(id, individuals, linear, pti),
+          registration: id,
           sourceUrl: row.source_url,
           focusKey: key,
         }),
         metaRow(
-          [row.registration_number, ptiSeasonLabel(row)].filter(Boolean).join(" · "),
+          [id, ptiSeasonLabel(row)].filter(Boolean).join(" · "),
           "pti",
           ptiKey(row),
         ),
@@ -565,6 +589,7 @@ function paintSettings(settings) {
   ptiOpt.checked = opts.recordPti;
   linearOpt.checked = opts.recordLinear;
   omitEmptyOpt.checked = opts.omitEmptyColumns;
+  omitPaperOpt.checked = opts.omitWithoutPaperId;
   ancestryOpt.disabled = !opts.recordIndividuals;
   progenyOpt.disabled = !opts.recordIndividuals;
 }
@@ -577,6 +602,7 @@ function readSettingsForm() {
     recordPti: ptiOpt.checked,
     recordLinear: linearOpt.checked,
     omitEmptyColumns: omitEmptyOpt.checked,
+    omitWithoutPaperId: omitPaperOpt.checked,
   };
 }
 
@@ -734,6 +760,7 @@ downloadCsvBtn.addEventListener("click", async () => {
   downloadBlob(
     storeToCsvBlob(store, kind, {
       omitEmptyColumns: readSettingsForm().omitEmptyColumns,
+      omitWithoutPaperId: readSettingsForm().omitWithoutPaperId,
     }),
     csvExportFilename(kind),
   );
@@ -754,6 +781,7 @@ downloadBtn.addEventListener("click", async () => {
       exportedAt: new Date().toISOString(),
       exporterVersion: chrome.runtime.getManifest().version,
       omitEmptyColumns: readSettingsForm().omitEmptyColumns,
+      omitWithoutPaperId: readSettingsForm().omitWithoutPaperId,
     }),
     exportFilename(),
   );
@@ -771,6 +799,7 @@ progenyOpt.addEventListener("change", saveSettings);
 ptiOpt.addEventListener("change", saveSettings);
 linearOpt.addEventListener("change", saveSettings);
 omitEmptyOpt.addEventListener("change", saveSettings);
+omitPaperOpt.addEventListener("change", saveSettings);
 
 panelEl.addEventListener("scroll", persistUi, { passive: true });
 

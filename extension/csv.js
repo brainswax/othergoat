@@ -9,7 +9,7 @@ import {
   PTI_COLUMNS,
   STORE_FILES,
 } from "./schema.js";
-import { identityKey } from "./registration.js";
+import { hasReliablePaperId, identityKey, toAdgaSerial, toGeneticsRegNumber } from "./registration.js";
 import { zipStore } from "./zip.js";
 
 export { INDIVIDUAL_COLUMNS, LINEAR_COLUMNS, PTI_COLUMNS };
@@ -46,18 +46,44 @@ export function exportColumns(records, columns, omitEmpty = false) {
 function nameByRegistration(individuals) {
   const names = new Map();
   for (const row of individuals ?? []) {
-    const reg = String(row?.registration_number ?? "").trim();
     const name = String(row?.registered_name ?? "").trim();
-    if (!reg || !name) continue;
-    names.set(identityKey(reg), name);
+    if (!name) continue;
+    for (const value of [row?.reg_number, row?.registration_number]) {
+      const key = identityKey(value) || toGeneticsRegNumber(value);
+      if (key) names.set(key, name);
+    }
   }
   return names;
+}
+
+function withSerials(row) {
+  return {
+    ...row,
+    goat_id: toAdgaSerial(row?.goat_id || row?.reg_number || row?.registration_number),
+    ...(row?.sire_reg_number != null || row?.sire_registration != null || row?.sire_goat_id != null
+      ? {
+          sire_goat_id: toAdgaSerial(
+            row?.sire_goat_id || row?.sire_reg_number || row?.sire_registration,
+          ),
+        }
+      : {}),
+    ...(row?.dam_reg_number != null || row?.dam_registration != null || row?.dam_goat_id != null
+      ? {
+          dam_goat_id: toAdgaSerial(
+            row?.dam_goat_id || row?.dam_reg_number || row?.dam_registration,
+          ),
+        }
+      : {}),
+  };
 }
 
 function withRegisteredNames(lists) {
   const names = nameByRegistration(lists?.individuals);
   const fill = (row) => {
-    const fromId = names.get(identityKey(row?.registration_number));
+    const fromId =
+      names.get(identityKey(row?.reg_number)) ||
+      names.get(identityKey(row?.registration_number)) ||
+      names.get(toGeneticsRegNumber(row?.reg_number || row?.registration_number));
     if (!fromId) return row;
     return { ...row, registered_name: fromId };
   };
@@ -77,6 +103,7 @@ export function buildExportManifest(lists, meta = {}) {
       name: EXPORTER_NAME,
       version: String(meta.exporterVersion ?? ""),
       ...(meta.omitEmptyColumns ? { omitEmptyColumns: true } : {}),
+      ...(meta.omitWithoutPaperId === false ? { omitWithoutPaperId: false } : {}),
     },
     files: [
       {
@@ -101,8 +128,37 @@ export function buildExportManifest(lists, meta = {}) {
   };
 }
 
+function filterReliablePaperIds(lists, omitWithoutPaperId) {
+  if (omitWithoutPaperId === false) return lists;
+  const individuals = (lists?.individuals ?? []).filter((row) =>
+    hasReliablePaperId(row),
+  );
+  const keep = new Set(
+    individuals
+      .map((row) => toGeneticsRegNumber(row.reg_number || row.registration_number))
+      .filter(Boolean),
+  );
+  const onKept = (row) =>
+    keep.has(toGeneticsRegNumber(row?.reg_number || row?.registration_number));
+  return {
+    ...lists,
+    individuals,
+    linear: (lists?.linear ?? []).filter(onKept),
+    pti: (lists?.pti ?? []).filter(onKept),
+  };
+}
+
 export function storeToZipFiles(lists, meta = {}) {
-  const named = withRegisteredNames(lists);
+  const named = filterReliablePaperIds(
+    withRegisteredNames(lists),
+    meta.omitWithoutPaperId,
+  );
+  const serials = {
+    ...named,
+    individuals: (named.individuals ?? []).map(withSerials),
+    linear: (named.linear ?? []).map(withSerials),
+    pti: (named.pti ?? []).map(withSerials),
+  };
   const omit = Boolean(meta.omitEmptyColumns);
   return [
     {
@@ -112,22 +168,22 @@ export function storeToZipFiles(lists, meta = {}) {
     {
       name: STORE_FILES.individuals,
       text: recordsToCsv(
-        named.individuals ?? [],
-        exportColumns(named.individuals, INDIVIDUAL_COLUMNS, omit),
+        serials.individuals,
+        exportColumns(serials.individuals, INDIVIDUAL_COLUMNS, omit),
       ),
     },
     {
       name: STORE_FILES.linear,
       text: recordsToCsv(
-        named.linear ?? [],
-        exportColumns(named.linear, LINEAR_COLUMNS, omit),
+        serials.linear,
+        exportColumns(serials.linear, LINEAR_COLUMNS, omit),
       ),
     },
     {
       name: STORE_FILES.pti,
       text: recordsToCsv(
-        named.pti ?? [],
-        exportColumns(named.pti, PTI_COLUMNS, omit),
+        serials.pti,
+        exportColumns(serials.pti, PTI_COLUMNS, omit),
       ),
     },
   ];
@@ -147,7 +203,10 @@ export function csvExportFilename(kind, when = new Date()) {
 }
 
 export function storeToCsvBlob(lists, kind, meta = {}) {
-  const named = withRegisteredNames(lists);
+  const named = filterReliablePaperIds(
+    withRegisteredNames(lists),
+    meta.omitWithoutPaperId,
+  );
   const omit = Boolean(meta.omitEmptyColumns);
   const text =
     kind === "linear"

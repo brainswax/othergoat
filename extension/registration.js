@@ -18,6 +18,53 @@ const BREED_LETTERS = new Set([
   "R",
 ]);
 
+/** Pedigree link title: ` PB D001822638 born 4/16/2016 `. */
+export function parsePedigreeLinkTitle(title) {
+  const text = String(title ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const herdbook = (text.match(
+    /\b(PB|AM|GR|RE|Purebred|American|Grade|Recorded)\b/i,
+  ) ?? [])[1];
+  const reg = (text.match(/\b([A-Z]\d{8,12})\b/i) ?? [])[1];
+  const dob = (text.match(/\bborn\s+(\d{1,2}\/\d{1,2}\/\d{4})/i) ?? [])[1];
+  return {
+    herdbook: herdbook ? herdbook.toUpperCase() : "",
+    reg_number: reg ? reg.toUpperCase() : "",
+    date_of_birth: dob ?? "",
+  };
+}
+
+/** Paper id only when Genetics id and herdbook are both known. */
+export function paperIdFromGenetics(regNumber, herdbook) {
+  const genetics = toGeneticsRegNumber(regNumber);
+  if (!genetics || !herdbookToStatus(herdbook)) return "";
+  return toAdgaRegistration(genetics, herdbook);
+}
+
+/** True when the value is already a paper id (P/A/G/R + breed + digits). */
+export function isPaperRegistration(value) {
+  const raw = String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "");
+  const cert = raw.match(/^([PAGR])([A-Z])0*(\d+)$/);
+  return Boolean(
+    cert && STATUS_LETTERS.has(cert[1]) && BREED_LETTERS.has(cert[2]),
+  );
+}
+
+export function hasReliablePaperId(row) {
+  if (isPaperRegistration(row?.registration_number)) return true;
+  return Boolean(
+    paperIdFromGenetics(
+      row?.reg_number || row?.registration_number,
+      row?.herdbook,
+    ),
+  );
+}
+
 export function herdbookToStatus(herdbook) {
   const h = String(herdbook ?? "")
     .trim()
@@ -82,6 +129,17 @@ export function toGeneticsRegNumber(value) {
   const match = key.match(/^([A-Z])(\d+)$/);
   if (!match || !BREED_NAMES[match[1]]) return "";
   return `${match[1]}${match[2].padStart(9, "0")}`;
+}
+
+/** ADGA Goat Id / paper digits. `D002434405`, `PD2434405`, and `2434405` are the same. */
+export function toAdgaSerial(value) {
+  const genetics = toGeneticsRegNumber(value);
+  if (genetics) return genetics.slice(1).replace(/^0+/, "");
+  const raw = String(value ?? "")
+    .trim()
+    .replace(/[\s-]+/g, "");
+  if (/^\d+$/.test(raw)) return raw.replace(/^0+/, "");
+  return "";
 }
 
 /**

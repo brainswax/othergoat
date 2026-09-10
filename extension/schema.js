@@ -1,4 +1,4 @@
-/** Locked export columns. Join tables on registration_number. */
+/** Locked export columns. Join on `goat_id` (ADGA serial digits). */
 
 export const FORMAT_ID = "adga-genetics-export";
 /** Condensed semver `major.patch`. Same major is compatible. */
@@ -13,6 +13,7 @@ export function parseFileVersion(value) {
 
 export const INDIVIDUAL_COLUMNS = [
   "registration_number",
+  "reg_number",
   "registered_name",
   "title",
   "breed",
@@ -26,7 +27,11 @@ export const INDIVIDUAL_COLUMNS = [
   "linear_majors",
   "linear_age",
   "sire_registration",
+  "sire_reg_number",
+  "sire_goat_id",
   "dam_registration",
+  "dam_reg_number",
+  "dam_goat_id",
   "owner_id",
   "owner_name",
   "breeder_id",
@@ -102,6 +107,8 @@ export function compareIndividuals(a, b) {
 /** Same groups as Genetics Linear History / LA reports. */
 export const LINEAR_COLUMNS = [
   "registration_number",
+  "reg_number",
+  "goat_id",
   "registered_name",
   "appraisal_date",
   "age",
@@ -163,6 +170,8 @@ export const LA_TRAIT_KEYS = [
 
 export const PTI_COLUMNS = [
   "registration_number",
+  "reg_number",
+  "goat_id",
   "registered_name",
   "pti21",
   "pti12",
@@ -180,9 +189,9 @@ export const STORE_FILES = {
 
 /** `major.patch`. Patch = additive. Major = breaking. Same major is compatible. */
 export const FILE_VERSIONS = {
-  individuals: "1.0",
-  linear: "1.0",
-  pti: "1.0",
+  individuals: "1.2",
+  linear: "1.2",
+  pti: "1.2",
 };
 
 export function emptyIndividual() {
@@ -223,6 +232,7 @@ export const DEFAULT_SETTINGS = {
   recordPti: true,
   recordLinear: true,
   omitEmptyColumns: false,
+  omitWithoutPaperId: true,
 };
 
 export function normalizeSettings(raw) {
@@ -234,5 +244,6 @@ export function normalizeSettings(raw) {
     recordPti: src.recordPti !== false,
     recordLinear: src.recordLinear !== false,
     omitEmptyColumns: src.omitEmptyColumns === true,
+    omitWithoutPaperId: src.omitWithoutPaperId !== false,
   };
 }

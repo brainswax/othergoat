@@ -10,7 +10,13 @@ import {
   emptyPti,
   normalizeSettings,
 } from "./schema.js";
-import { identityKey, toAdgaRegistration } from "./registration.js";
+import {
+  identityKey,
+  paperIdFromGenetics,
+  parsePedigreeLinkTitle,
+  toAdgaSerial,
+  toGeneticsRegNumber,
+} from "./registration.js";
 
 export { normalizeSettings } from "./schema.js";
 
@@ -433,32 +439,58 @@ export function detectView(page) {
 
 function goatLinks(links) {
   return (links ?? [])
-    .map((link) => ({
-      href: link.href ?? "",
-      text: stripPedigreeLabel(link.text),
-      title: collapse(link.title),
-      registration: registrationFromHref(link.href ?? ""),
-      color: link.color ?? "",
-      backgroundColor: link.backgroundColor ?? "",
-      className: link.className ?? "",
-    }))
+    .map((link) => {
+      const title = collapse(link.title);
+      const parsed = parsePedigreeLinkTitle(title);
+      return {
+        href: link.href ?? "",
+        text: stripPedigreeLabel(link.text),
+        title,
+        registration:
+          registrationFromHref(link.href ?? "") || parsed.reg_number,
+        herdbook: parsed.herdbook,
+        date_of_birth: parsed.date_of_birth,
+        color: link.color ?? "",
+        backgroundColor: link.backgroundColor ?? "",
+        className: link.className ?? "",
+      };
+    })
     .filter((link) => link.registration && collapse(link.text).length <= 80);
 }
 
 function matchLink(segment, links) {
   const nearby = collapse(segment);
-  if (nearby.length > 160) return null;
+  if (!nearby || nearby.length > 160) return null;
+
+  const regs = [...nearby.matchAll(/[A-Z]\d{8,12}/gi)];
+  for (const hit of regs) {
+    const want = hit[0].toUpperCase();
+    const named = links.find(
+      (link) =>
+        toGeneticsRegNumber(link.registration) === toGeneticsRegNumber(want) ||
+        identityKey(link.registration) === identityKey(want) ||
+        String(link.registration).toUpperCase() === want,
+    );
+    if (named) return named;
+  }
+
+  let best = null;
+  let bestIdx = Infinity;
+  let bestLen = 0;
   for (const link of links) {
-    if (!link.text) continue;
-    if (nearby.includes(link.text) || nearby.includes(link.registration)) {
-      return link;
+    const name = collapse(link.text);
+    if (name.length < 3) continue;
+    const idx = nearby.indexOf(name);
+    if (idx < 0) continue;
+    if (idx < bestIdx || (idx === bestIdx && name.length > bestLen)) {
+      best = link;
+      bestIdx = idx;
+      bestLen = name.length;
     }
   }
-  const fallback = nearby.match(REG_IN_TEXT);
-  if (fallback) {
-    const registration = fallback[0].toUpperCase();
-    const named = links.find((link) => link.registration === registration);
-    return named ?? { text: "", registration, href: "" };
+  if (best) return best;
+  if (regs[0]) {
+    return { text: "", registration: regs[0][0].toUpperCase(), href: "" };
   }
   return null;
 }
@@ -474,14 +506,21 @@ export function parsePedigreeNodes(text, links, tables = []) {
     if (seen.has(key)) return;
     seen.add(key);
     const marks = pedigreeFlags(link, skipBlackColor);
-    nodes.push({
+    const node = {
       label,
       registration: link.registration,
       name: stripPedigreeLabel(link.text),
-      herdbook: herdbookFromTitle(link.title),
+      herdbook: link.herdbook || herdbookFromTitle(link.title),
+      date_of_birth: link.date_of_birth || "",
       polled: marks.polled,
       black: marks.black,
-    });
+    };
+    const existing = nodes.findIndex((item) => item.label === label);
+    if (existing >= 0) {
+      nodes[existing] = node;
+      return;
+    }
+    nodes.push(node);
   };
 
   const blob = String(text ?? "").replace(/\u00a0/g, " ");
@@ -493,8 +532,11 @@ export function parsePedigreeNodes(text, links, tables = []) {
   }
   for (let i = 0; i < marks.length; i += 1) {
     const next = marks[i + 1];
-    const segment = blob.slice(marks[i].end, next ? next.start : marks[i].end + 160);
-    add(marks[i].label, matchLink(segment, goat));
+    const rest = blob.slice(marks[i].end);
+    const untilNext = next ? next.start - marks[i].end : rest.length;
+    const lineEnd = rest.search(/\r?\n/);
+    const end = Math.min(untilNext, lineEnd >= 0 ? lineEnd : 160, 160);
+    add(marks[i].label, matchLink(rest.slice(0, end), goat));
   }
 
   for (const table of tables ?? []) {
@@ -521,8 +563,10 @@ function stubsFromGoatLinks(links, capturedAt, sourceUrl) {
     const marks = pedigreeFlags(link, skipBlackColor);
     const row = emptyIndividual();
     row.registration_number = link.registration;
+    row.reg_number = toGeneticsRegNumber(link.registration);
     applyRegisteredName(row, stripPedigreeLabel(link.text));
-    row.herdbook = herdbookFromTitle(link.title);
+    row.herdbook = link.herdbook || herdbookFromTitle(link.title);
+    row.date_of_birth = link.date_of_birth || "";
     row.polled = marks.polled;
     row.black = marks.black;
     row.polled_from = "pedigree";
@@ -558,9 +602,11 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
     if (!byReg.has(node.registration)) {
       const row = emptyIndividual();
       row.registration_number = node.registration;
+      row.reg_number = toGeneticsRegNumber(node.registration);
       applyRegisteredName(row, node.name);
       row.sex = sexFromPedigreeLabel(node.label);
       row.herdbook = node.herdbook ?? "";
+      row.date_of_birth = node.date_of_birth ?? "";
       row.polled = node.polled ?? "";
       row.black = node.black ?? "";
       row.polled_from = "pedigree";
@@ -574,6 +620,10 @@ function individualsFromPedigree(subjectReg, nodes, capturedAt, sourceUrl) {
         applyRegisteredName(existing, node.name);
       }
       if (!existing.sex) existing.sex = sexFromPedigreeLabel(node.label);
+      if (node.herdbook && !existing.herdbook) existing.herdbook = node.herdbook;
+      if (node.date_of_birth && !existing.date_of_birth) {
+        existing.date_of_birth = node.date_of_birth;
+      }
       if (node.polled === "Y" || !existing.polled) existing.polled = node.polled;
       if (node.black === "Y" || !existing.black) existing.black = node.black;
       existing.polled_from = "pedigree";
@@ -649,6 +699,7 @@ export function extractProgenyRows(tables, current, capturedAt, sourceUrl) {
       }
       const row = emptyIndividual();
       row.registration_number = registration;
+      row.reg_number = toGeneticsRegNumber(registration);
       applyRegisteredName(row, name);
       row.herdbook = bookI >= 0 ? collapse(cells[bookI]) : "";
       row.breed = breedI >= 0 ? collapse(cells[breedI]) : "";
@@ -928,6 +979,7 @@ function subjectFromPage(page, registration, capturedAt) {
   const breed = parseBreedPercent(page.text);
   const row = emptyIndividual();
   row.registration_number = registration;
+  row.reg_number = toGeneticsRegNumber(registration);
   applyRegisteredName(row, heading.registered_name);
   row.sex = heading.sex;
   row.herdbook = heading.herdbook;
@@ -976,12 +1028,13 @@ function ownedStubsFromPage(page, ownerId, capturedAt) {
   const seen = new Set();
   const rows = [];
   const add = (registration, name) => {
-    const paper = toAdgaRegistration(registration);
-    const key = identityKey(paper);
+    const genetics = toGeneticsRegNumber(registration) || String(registration ?? "").trim();
+    const key = identityKey(genetics);
     if (!key || seen.has(key)) return;
     seen.add(key);
     const row = emptyIndividual();
-    row.registration_number = paper;
+    row.reg_number = genetics;
+    row.registration_number = registration;
     applyRegisteredName(row, name);
     row.owner_id = ownerId;
     row.source_url = page.url ?? "";
@@ -1025,28 +1078,45 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
   batch.eventTarget = collapse(page.eventTarget);
 
   const subject = subjectFromPage(page, registration, capturedAt);
+  const pedigreeNodes = parsePedigreeNodes(page.text, page.links, page.tables);
   const tree = individualsFromPedigree(
     registration,
-    parsePedigreeNodes(page.text, page.links, page.tables),
+    pedigreeNodes,
     capturedAt,
     page.url ?? "",
   );
-  const subjectFromTree = tree.find((row) => row.registration_number === registration);
+  const sameGenetics = (a, b) =>
+    Boolean(toGeneticsRegNumber(a) && toGeneticsRegNumber(a) === toGeneticsRegNumber(b));
+  const subjectFromTree = tree.find((row) =>
+    sameGenetics(row.reg_number || row.registration_number, registration),
+  );
   if (subjectFromTree) {
     subject.sire_registration = subjectFromTree.sire_registration;
     subject.dam_registration = subjectFromTree.dam_registration;
+  }
+  const parentHints = new Map();
+  for (const node of pedigreeNodes) {
+    const genetics = toGeneticsRegNumber(node.registration);
+    if (genetics && node.herdbook) parentHints.set(genetics, node.herdbook);
   }
   if (opts.recordIndividuals) {
     batch.individuals.push(subject);
     if (opts.captureAncestry) {
       batch.individuals.push(
-        ...tree.filter((row) => row.registration_number !== registration),
+        ...tree.filter(
+          (row) => !sameGenetics(row.reg_number || row.registration_number, registration),
+        ),
       );
       if (view === "pedigree") {
-        const have = new Set(batch.individuals.map((row) => row.registration_number));
+        const have = new Set(
+          batch.individuals.map((row) =>
+            toGeneticsRegNumber(row.reg_number || row.registration_number),
+          ),
+        );
         for (const stub of stubsFromGoatLinks(page.links, capturedAt, page.url ?? "")) {
-          if (have.has(stub.registration_number)) continue;
-          have.add(stub.registration_number);
+          const key = toGeneticsRegNumber(stub.reg_number || stub.registration_number);
+          if (!key || have.has(key)) continue;
+          have.add(key);
           batch.individuals.push(stub);
         }
       }
@@ -1083,54 +1153,65 @@ export function extractFromSnapshot(page, capturedAt = "", settings = {}) {
     for (const row of batch.linear) row.registered_name = named;
     for (const row of batch.pti) row.registered_name = named;
   }
-  return convertBatch(batch, subject.herdbook);
+  return convertBatch(batch, subject.herdbook, parentHints);
 }
 
-function convertRowRegs(row, fields) {
+function convertIndividual(row, byGenetics, parentHints = new Map()) {
   const next = { ...row };
-  for (const field of fields) {
-    if (!next[field]) continue;
-    next[field] = toAdgaRegistration(
-      next[field],
-      field === "registration_number" ? next.herdbook : "",
-    );
-  }
+  const genetics = toGeneticsRegNumber(next.reg_number || next.registration_number);
+  next.reg_number = genetics;
+  next.registration_number = paperIdFromGenetics(genetics, next.herdbook);
+  const parentPaper = (raw) => {
+    const parentG = toGeneticsRegNumber(raw);
+    if (!parentG) return { paper: "", genetics: "" };
+    const parent = byGenetics.get(parentG);
+    const book = parent?.herdbook || parentHints.get(parentG) || "";
+    return { paper: paperIdFromGenetics(parentG, book), genetics: parentG };
+  };
+  const sire = parentPaper(next.sire_registration || next.sire_reg_number);
+  const dam = parentPaper(next.dam_registration || next.dam_reg_number);
+  next.sire_reg_number = sire.genetics;
+  next.dam_reg_number = dam.genetics;
+  next.sire_registration = sire.paper;
+  next.dam_registration = dam.paper;
+  next.goat_id = toAdgaSerial(next.goat_id || genetics);
+  next.sire_goat_id = toAdgaSerial(next.sire_goat_id || sire.genetics);
+  next.dam_goat_id = toAdgaSerial(next.dam_goat_id || dam.genetics);
   return next;
 }
 
-function convertBatch(batch, subjectBook = "") {
-  const book = subjectBook || batch.individuals[0]?.herdbook || "";
-  batch.individuals = batch.individuals.map((row) =>
-    convertRowRegs(row, [
-      "registration_number",
-      "sire_registration",
-      "dam_registration",
-    ]),
+function convertBatch(batch, subjectBook = "", parentHints = new Map()) {
+  const sketched = batch.individuals.map((row) => {
+    const genetics = toGeneticsRegNumber(row.reg_number || row.registration_number);
+    return { ...row, reg_number: genetics };
+  });
+  const byGenetics = new Map(
+    sketched
+      .filter((row) => row.reg_number)
+      .map((row) => [row.reg_number, row]),
   );
-  batch.linear = batch.linear.map((row) => ({
-    ...row,
-    registration_number: toAdgaRegistration(row.registration_number, book),
-  }));
-  batch.pti = batch.pti.map((row) => ({
-    ...row,
-    registration_number: toAdgaRegistration(row.registration_number, book),
-  }));
-  if (batch.subjectRegistration) {
-    batch.subjectRegistration = toAdgaRegistration(
-      batch.subjectRegistration,
-      book,
-    );
-  }
-  const canon = (reg) => {
-    if (!reg) return "";
-    const hit = batch.individuals.find(
-      (row) => identityKey(row.registration_number) === identityKey(reg),
-    );
-    return hit?.registration_number || toAdgaRegistration(reg);
+  batch.individuals = sketched.map((row) =>
+    convertIndividual(row, byGenetics, parentHints),
+  );
+  const bookFor = (reg) => {
+    const genetics = toGeneticsRegNumber(reg);
+    return byGenetics.get(genetics)?.herdbook || subjectBook;
   };
-  for (const row of batch.individuals) {
-    row.sire_registration = canon(row.sire_registration);
-    row.dam_registration = canon(row.dam_registration);
+  const convertScore = (row) => {
+    const genetics = toGeneticsRegNumber(row.reg_number || row.registration_number);
+    return {
+      ...row,
+      reg_number: genetics,
+      goat_id: toAdgaSerial(row.goat_id || genetics),
+      registration_number: paperIdFromGenetics(genetics, bookFor(genetics)),
+    };
+  };
+  batch.linear = batch.linear.map(convertScore);
+  batch.pti = batch.pti.map(convertScore);
+  if (batch.subjectRegistration) {
+    const genetics = toGeneticsRegNumber(batch.subjectRegistration);
+    batch.subjectRegistration =
+      paperIdFromGenetics(genetics, bookFor(genetics)) || genetics;
   }
   return batch;
 }

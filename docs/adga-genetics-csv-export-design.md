@@ -8,13 +8,13 @@ The extension does not contact any server.
 
 ## 1. Overview
 
-A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by registration number. The user downloads a zip of `manifest.json` plus three CSVs: individuals, linear appraisals, and PTI/ETA.
+A browser extension captures structured animal data from ADGA Genetics GoatDetail views the user opens. Records merge locally by ADGA Goat Id (serial digits). The user downloads a zip of `manifest.json` plus three CSVs: individuals, linear appraisals, and PTI/ETA.
 
 ## 2. Goals
 
 - Capture data from pages and views the user actually opens.
 - Tolerate partial rows (pedigree stubs, progeny tables).
-- Deduplicate by registration; empty fields never overwrite filled ones.
+- Deduplicate by Genetics id / Goat Id; empty fields never overwrite filled ones.
 - Keep all data on this computer until the user downloads a file.
 - Produce a normalized zip usable in spreadsheets.
 
@@ -40,7 +40,7 @@ Background store: `chrome.storage.local` `{ individuals, linear, pti }`.
 
 Merge:
 
-- Individual key: ADGA registration ID (not Genetics `RegNumber`). `D002237546` + PB → `PD2237546`. Later non-empty field values replace earlier ones; blanks do not clobber. Polled/black are an exception: the animal’s own GoatDetail identity pane outranks a progeny `IsPolled`/`IsBlack` cell, which outranks pedigree name colors. A later identity visit overwrites an earlier pedigree guess; pedigree colors never overwrite identity.
+- Individual key: Genetics `RegNumber` (`D002237546`), stored as `reg_number`. `goat_id` is the ADGA serial (digits only: `2237546`). Paper id (`PD2237546`) is built only when herdbook is known (`PB` + `D002237546`). Later non-empty field values replace earlier ones; blanks do not clobber. Polled/black are an exception: the animal’s own GoatDetail identity pane outranks a progeny `IsPolled`/`IsBlack` cell, which outranks pedigree name colors. A later identity visit overwrites an earlier pedigree guess; pedigree colors never overwrite identity. **Sire/dam:** a later fill is allowed only when that animal is the open GoatDetail. A pedigree stub seen on someone else’s page fills empty parent slots only — it does not replace parents already stored. Parent columns: paper ids, Genetics ids (`sire_reg_number` / `dam_reg_number`), and serials (`sire_goat_id` / `dam_goat_id`). Join parents on `goat_id`, not on name or compact paper strings.
 - LA key: `registration_number` + `appraisal_date` (or `age` if no date).
 - PTI key (today): `registration_number` — one current row; later non-empty values overwrite. **Todo (historic PTI):** key by `registration_number` + the August/December eval implied by `captured_at` so a goat can have several rows.
 
@@ -60,7 +60,9 @@ A CSV is one table. Multiple tables are separate files in the zip. **`manifest.j
 format, manifestVersion, exportedAt, exporter { name, version }, files [{ name, kind, version, rows }]
 ```
 
-`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Today `manifestVersion` and each file `version` are `"1.0"`. The manifest is optional; the three CSVs are usable on their own (including a loose CSV download).
+`format` is `adga-genetics-export`. `files[].rows` is data rows, not the header. Today `manifestVersion` is `"1.0"` and each file `version` is `"1.2"` (`goat_id` plus parent serials). The manifest is optional; the three CSVs are usable on their own (including a loose CSV download).
+
+**Omit rows without a paper id** (Settings, **on** by default): drop a row from the download when herdbook or Genetics id is missing. The local queue still keeps the stub. Turn off to export every captured row.
 
 **Omit empty columns** (Settings, **off** by default): drop a column when every row is blank. For spreadsheets. Leave off to keep the full locked header. Empty tables still get the full header. When on, `exporter.omitEmptyColumns` is `true` in the zip manifest.
 
@@ -69,16 +71,16 @@ format, manifestVersion, exportedAt, exporter { name, version }, files [{ name, 
 One row per registration.
 
 ```
-registration_number,registered_name,title,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,linear_majors,linear_age,sire_registration,dam_registration,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,goat_id,source_url,captured_at,notes
+registration_number,reg_number,registered_name,title,breed,breed_percent,herdbook,polled,black,sex,date_of_birth,linear_final_score,linear_majors,linear_age,sire_registration,sire_reg_number,sire_goat_id,dam_registration,dam_reg_number,dam_goat_id,owner_id,owner_name,breeder_id,breeder_name,tattoo_re,tattoo_le,tattoo_comment,eid,eid_location,ears,horns,conforms,description,status,breeding_method,application_id,file_app_id,format_1,goat_id,source_url,captured_at,notes
 ```
 
 **`owner_id`:** ADGA membership ID. Fill it when the animal appears on Genetics **Owned by me**, or later from app.adga.org **Owner**. **Empty or omitted = unknown.** Do not invent `owner_id` from a Genetics GoatDetail visit.
 
-**app.adga.org Identity (columns locked; scrape later):** `owner_name`, `breeder_id`, `breeder_name`, `tattoo_re`, `tattoo_le`, `tattoo_comment`, `eid`, `eid_location`, `ears`, `horns`, `conforms`, `description`, `status`, `breeding_method`, `application_id`, `file_app_id`, `format_1` (ICAR/CDCB id, e.g. `NDUSA000002495341`), `goat_id` (numeric). Store `horns` as ADGA shows it (`POLLED`, `DISBUDDED`, `HORNED`, …). `Horns: POLLED` also fills empty `polled` as Y. `DISBUDDED` / `HORNED` do not. Do not overwrite a filled `polled`. `description` is free text (e.g. BUCKSKIN), not the Genetics coat-pattern flags. Parent names and parent-owner boxes belong on the parent’s own row. Photo is out of the CSV.
+**app.adga.org Identity (columns locked; scrape later):** `owner_name`, `breeder_id`, `breeder_name`, `tattoo_re`, `tattoo_le`, `tattoo_comment`, `eid`, `eid_location`, `ears`, `horns`, `conforms`, `description`, `status`, `breeding_method`, `application_id`, `file_app_id`, `format_1` (ICAR/CDCB id, e.g. `NDUSA000002495341`). Store `horns` as ADGA shows it (`POLLED`, `DISBUDDED`, `HORNED`, …). `Horns: POLLED` also fills empty `polled` as Y. `DISBUDDED` / `HORNED` do not. Do not overwrite a filled `polled`. `description` is free text (e.g. BUCKSKIN), not the Genetics coat-pattern flags. Parent names and parent-owner boxes belong on the parent’s own row. Photo is out of the CSV.
 
-Parent links are registration numbers only. The parent’s name lives on the parent’s own row. Join later by reg #. `title` is SG / SGCH / CH / GCH when that prefix is on the name. `linear_final_score`, `linear_majors`, and `linear_age` come from the identity pane (`FS84 (+V++) @ 01-03`).
+`goat_id` is the ADGA serial (Goat Id digits, e.g. `2434405`). Fill it from Genetics `RegNumber` / paper digits — do not wait for app.adga.org. `PD2434405`, `D002434405`, and `2434405` are the same animal. `reg_number` is the Genetics id. `registration_number` is the paper id when herdbook is known; otherwise empty. Parent paper ids (`sire_registration` / `dam_registration`) are built the same way; `sire_reg_number` / `dam_reg_number` are Genetics ids; `sire_goat_id` / `dam_goat_id` are parent serials. The parent’s name lives on the parent’s own row. **Join on `goat_id`.** Do not assign parents by name or by paper id alone (a compact Genetics id and a paper id are the same serial). `title` is SG / SGCH / CH / GCH when that prefix is on the name. `linear_final_score`, `linear_majors`, and `linear_age` come from the identity pane (`FS84 (+V++) @ 01-03`).
 
-**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Stubs get name, registration, and parent registration numbers when those nodes are on the page. Visiting that animal later fills the rest. Ancestor polled/black are implied from name colors: green = polled, black (when distinct from default link text) = black coat, red = both; unmarked names store `N`. The open animal uses the identity pane only (heading `Polled`/`Black`, else `N`), not tree colors. If that animal’s own page disagrees with a color seen on someone else’s pedigree, the identity page wins.
+**Pedigree:** every visible tree node (subject, S, D, SS, …) becomes a row. Link `title` (` PB D001822638 born 4/16/2016 `) fills herdbook, Genetics id, and DOB. Stubs get name, `reg_number`, paper id when herdbook is present, and parent Genetics ids. Visiting that animal later fills the rest. Ancestor polled/black are implied from name colors: green = polled, black (when distinct from default link text) = black coat, red = both; unmarked names store `N`. The open animal uses the identity pane only (heading `Polled`/`Black`, else `N`), not tree colors. If that animal’s own page disagrees with a color seen on someone else’s pedigree, the identity page wins.
 
 **Progeny:** each table row is a stub; `sire_registration` or `dam_registration` is set to the current animal (buck → sire, doe → dam).
 
@@ -87,7 +89,7 @@ Parent links are registration numbers only. The parent’s name lives on the par
 One row per Linear History event.
 
 ```
-registration_number,registered_name,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3,source_url,captured_at,notes
+registration_number,reg_number,goat_id,registered_name,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,ruh,rua,msl,ud,tp,td,tl,bd,rusv,head,shoulder,front_legs,rear_legs,feet,back,rump,udder_texture,ga,ds,bc,ms,final_score,misc1,misc2,misc3,source_url,captured_at,notes
 ```
 
 `registered_name` is copied from the individual row so a spreadsheet is readable without joining. Trait keys follow Genetics Linear History / LA report groups: linear scores, structural letters, the four majors (`ga`, `ds`, `bc`, `ms`), final score, then miscellaneous codes. Unmapped Genetics columns go in `notes`.
@@ -97,7 +99,7 @@ registration_number,registered_name,appraisal_date,age,stat,st,dy,ra,rw,rls,fua,
 One row per registration per CDCB season. The left pane always has four slots (empty if not published).
 
 ```
-registration_number,registered_name,pti21,pti12,eta21,eta12,source_url,captured_at
+registration_number,reg_number,goat_id,registered_name,pti21,pti12,eta21,eta12,source_url,captured_at
 ```
 
 Map `captured_at` (scrape date) to August or December (Jan–Jul → prior December; Aug–Nov → August that year; Dec → December that year). Same-season merge updates the four numbers; a scrape after the next drop is a new row. Do not invent a third season.
