@@ -150,10 +150,19 @@ function headerIndex(headers, ...aliases) {
   return headers.findIndex((cell) => want.includes(headerKey(cell)));
 }
 
+const emptyHeading = {
+  registered_name: "",
+  sex: "",
+  herdbook: "",
+  title: "",
+  notes: "",
+};
+
+/** Championship tokens as Genetics prints them in the heading parentheses. */
+const TITLE_IN_TEXT_RE = /\b(SGCH|GCH|SG|CH)\b/i;
+
 export function parseHeading(heading, registration) {
-  if (!registration) {
-    return { registered_name: "", sex: "", herdbook: "", notes: "" };
-  }
+  if (!registration) return { ...emptyHeading };
   const escaped = registration.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(
     `^(.+?)\\s*-\\s*${escaped}\\s*(?:\\(([^)]*)\\))?`,
@@ -178,15 +187,28 @@ export function parseHeading(heading, registration) {
       registered_name: name,
       sex,
       herdbook: herdbook.toUpperCase(),
-      notes: collapse(paren),
+      title: titleFromName(name) || titleFromNotes(paren),
+      notes: notesWithoutTitle(paren),
     };
   }
-  return { registered_name: "", sex: "", herdbook: "", notes: "" };
+  return { ...emptyHeading };
 }
 
 export function titleFromName(name) {
   const match = collapse(name).match(/^(SGCH|GCH|SG|CH)\b/i);
   return match ? match[1].toUpperCase() : "";
+}
+
+export function titleFromNotes(notes) {
+  const match = collapse(notes).match(TITLE_IN_TEXT_RE);
+  return match ? match[1].toUpperCase() : "";
+}
+
+function notesWithoutTitle(notes) {
+  return collapse(notes)
+    .replace(/\b(?:SGCH|GCH|SG|CH)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function applyRegisteredName(row, name) {
@@ -973,6 +995,7 @@ function subjectFromPage(page, registration, capturedAt) {
     registered_name: fromTitle.registered_name || fromText.registered_name,
     sex: fromTitle.sex || fromText.sex,
     herdbook: fromTitle.herdbook || fromText.herdbook,
+    title: fromTitle.title || fromText.title,
     notes: fromTitle.notes || fromText.notes,
   };
   const dob = parseDobAndAppraisal(page.text);
@@ -981,6 +1004,7 @@ function subjectFromPage(page, registration, capturedAt) {
   row.adga_reg = registration;
   row.adga_genetics_id = toGeneticsRegNumber(registration);
   applyRegisteredName(row, heading.registered_name);
+  if (!row.title && heading.title) row.title = heading.title;
   row.sex = heading.sex;
   row.herdbook = heading.herdbook;
   row.breed = breed.breed;

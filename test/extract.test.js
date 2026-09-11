@@ -270,6 +270,20 @@ describe("parseHeading", () => {
     assert.equal(parsed.registered_name, "SG ALDER*GLEN TRES BONNE 3*M");
     assert.equal(parsed.sex, "DOE");
     assert.equal(parsed.herdbook, "PB");
+    assert.equal(parsed.title, "SG");
+    assert.equal(parsed.notes, "PB Doe");
+  });
+
+  it("reads a championship title from the heading parentheses", () => {
+    const parsed = parseHeading(
+      "TWIN WILLOWS AL KARAMELLO - D002237546 (PB Doe GCH)",
+      "D002237546",
+    );
+    assert.equal(parsed.registered_name, "TWIN WILLOWS AL KARAMELLO");
+    assert.equal(parsed.sex, "DOE");
+    assert.equal(parsed.herdbook, "PB");
+    assert.equal(parsed.title, "GCH");
+    assert.equal(parsed.notes, "PB Doe");
   });
 });
 
@@ -944,6 +958,24 @@ describe("extractFromSnapshot progeny rejects layout tables", () => {
     const names = batch.individuals.map((row) => row.registered_name);
     assert.deepEqual(names, ["TWIN WILLOWS AL KARAMELLO", "KID ONE"]);
     assert.equal(batch.individuals[0].notes, "PB Doe");
+  });
+});
+
+describe("extractFromSnapshot heading title", () => {
+  it("stores a championship title from the heading parentheses", () => {
+    const batch = extractFromSnapshot({
+      url: "https://genetics.adga.org/GoatDetail.aspx?RegNumber=D002237546",
+      title: "TWIN WILLOWS AL KARAMELLO - D002237546 (PB Doe GCH)",
+      text: "TWIN WILLOWS AL KARAMELLO - D002237546 (PB Doe GCH)\nDOB: 3/1/2018",
+      links: [],
+      tables: [],
+    });
+    const row = batch.individuals[0];
+    assert.equal(row.registered_name, "TWIN WILLOWS AL KARAMELLO");
+    assert.equal(row.title, "GCH");
+    assert.equal(row.notes, "PB Doe");
+    assert.equal(row.sex, "DOE");
+    assert.equal(row.herdbook, "PB");
   });
 });
 
